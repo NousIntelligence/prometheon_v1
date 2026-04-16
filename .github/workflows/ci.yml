@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "release/**"]
+  pull_request:
+    branches: [main, "release/**"]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+# This workflow verifies the package can be built and installed from a clean
+# environment. Lint, type, test, and security coverage live in their own
+# workflows; this is the build-and-install smoke gate.
+jobs:
+  build:
+    name: build wheel and sdist
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.4.x"
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Sync dependencies
+        run: uv sync --group dev
+
+      - name: Build sdist and wheel
+        run: uv build
+
+      - name: Upload distribution artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/*
+          if-no-files-found: error
+
+  install-smoke-test:
+    name: install from wheel and exercise CLI
+    runs-on: ubuntu-24.04
+    needs: build
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Download distribution artefacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+
+      - name: Install built wheel into a clean venv
+        run: |
+          python -m venv .smoke
+          .smoke/bin/pip install --upgrade pip
+          .smoke/bin/pip install dist/*.whl
+
+      - name: CLI smoke check
+        run: |
+          .smoke/bin/prometheon --help
