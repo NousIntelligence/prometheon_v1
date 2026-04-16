@@ -1,0 +1,87 @@
+name: Security
+
+on:
+  push:
+    branches: [main, "release/**"]
+  pull_request:
+    branches: [main, "release/**"]
+  schedule:
+    - cron: "0 8 * * 1"   # every Monday 08:00 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  pip-audit:
+    name: pip-audit (dependency vulnerabilities)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.4.x"
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Resolve dependencies
+        run: uv sync --group dev
+
+      - name: Run pip-audit against the lockfile
+        run: |
+          uv pip install pip-audit
+          uv run pip-audit --strict --disable-pip --skip-editable
+
+  bandit:
+    name: bandit (static analysis)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.4.x"
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install bandit
+        run: uv pip install bandit
+
+      - name: Run bandit on src/
+        run: uv run bandit -r src/prometheon -ll -q
+
+  verify-signatures:
+    name: verify pushed commits are signed
+    runs-on: ubuntu-24.04
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fail on unsigned commits in PR range
+        run: |
+          set -euo pipefail
+          base="${{ github.event.pull_request.base.sha }}"
+          head="${{ github.event.pull_request.head.sha }}"
+          unsigned="$(git log --pretty='%H %G?' "$base..$head" | awk '$2!="G" && $2!="U" {print $1}')"
+          if [[ -n "$unsigned" ]]; then
+            echo "::error::The following commits are unsigned or have an invalid signature:"
+            echo "$unsigned"
+            exit 1
+          fi
+          echo "All commits in the PR range carry valid signatures."
