@@ -52,7 +52,7 @@ class TestSha256Hex:
         assert len(sha256_hex(b"x")) == 66
 
     def test_empty_hash_constant_matches_function(self) -> None:
-        assert EMPTY_SHA256_HEX == sha256_hex(b"")
+        assert sha256_hex(b"") == EMPTY_SHA256_HEX
 
 
 # ---------------------------------------------------------------------------
@@ -67,9 +67,7 @@ class TestDomainPrefixedHash:
         # recomputes that composition manually to verify equivalence.
         import rfc8785
 
-        manual = (
-            DOMAIN_RECORD_SET.encode("ascii") + b"\n" + rfc8785.dumps(payload)
-        )
+        manual = DOMAIN_RECORD_SET.encode("ascii") + b"\n" + rfc8785.dumps(payload)
         assert domain_prefixed_hash(DOMAIN_RECORD_SET, payload) == sha256_hex(manual)
 
     def test_unknown_domain_rejected(self) -> None:
