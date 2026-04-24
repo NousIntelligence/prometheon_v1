@@ -168,9 +168,7 @@ def domain_prefixed_bytes(domain: str, obj: Any) -> bytes:
     try:
         prefix = domain.encode("ascii")
     except UnicodeEncodeError as exc:
-        raise CanonicalEncodingError(
-            f"signing domain must be pure ASCII: {domain!r}"
-        ) from exc
+        raise CanonicalEncodingError(f"signing domain must be pure ASCII: {domain!r}") from exc
 
     return prefix + _DOMAIN_SEPARATOR + to_canonical_bytes(obj)
 
@@ -205,10 +203,7 @@ def parse_canonical_json(raw: str | bytes) -> Any:
     CanonicalEncodingError
         On any of the rejection conditions above, or on a JSON syntax error.
     """
-    if isinstance(raw, bytes):
-        text = raw.decode("utf-8")
-    else:
-        text = raw
+    text = raw.decode("utf-8") if isinstance(raw, bytes) else raw
 
     try:
         return json.loads(
@@ -263,9 +258,7 @@ def _reject_float_literal(value: str) -> float:
     through here. Prometheon forbids such values entirely, so we raise with
     the literal in the message for debuggability.
     """
-    raise CanonicalEncodingError(
-        f"float literal forbidden in Prometheon canonical JSON: {value!r}"
-    )
+    raise CanonicalEncodingError(f"float literal forbidden in Prometheon canonical JSON: {value!r}")
 
 
 def _reject_constant_literal(value: str) -> float:
@@ -299,17 +292,17 @@ def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 
 
 __all__ = [
-    "DOMAIN_IDENTITY_VERIFY",
-    "DOMAIN_HOTKEY_ROTATION",
-    "DOMAIN_HOTKEY_RECOVERY",
-    "DOMAIN_API_REQUEST",
-    "DOMAIN_SNAPSHOT",
-    "DOMAIN_RECORD_SET",
-    "DOMAIN_RECORD_PAGE",
-    "DOMAIN_WEIGHT_PLAN",
     "ALL_DOMAINS",
+    "DOMAIN_API_REQUEST",
+    "DOMAIN_HOTKEY_RECOVERY",
+    "DOMAIN_HOTKEY_ROTATION",
+    "DOMAIN_IDENTITY_VERIFY",
+    "DOMAIN_RECORD_PAGE",
+    "DOMAIN_RECORD_SET",
+    "DOMAIN_SNAPSHOT",
+    "DOMAIN_WEIGHT_PLAN",
     "CanonicalEncodingError",
-    "to_canonical_bytes",
     "domain_prefixed_bytes",
     "parse_canonical_json",
+    "to_canonical_bytes",
 ]
