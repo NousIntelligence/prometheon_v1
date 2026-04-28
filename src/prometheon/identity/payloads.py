@@ -59,7 +59,7 @@ _SS58_LOOSE_RE: Final[str] = r"^[1-9A-HJ-NP-Za-km-z]{46,48}$"
 # ---------------------------------------------------------------------------
 
 
-class _PrometheonPayload(BaseModel):
+class PrometheonPayload(BaseModel):
     """Base class for every canonical identity payload.
 
     Subclasses declare their own fields plus a ``domain`` Literal default.
@@ -125,7 +125,7 @@ class NonceResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class IdentityVerifyPayload(_PrometheonPayload):
+class IdentityVerifyPayload(PrometheonPayload):
     """Canonical payload for miner / validator identity verification.
 
     The hotkey owner signs the domain-prefixed JCS bytes of this payload
@@ -155,7 +155,7 @@ class IdentityVerifyPayload(_PrometheonPayload):
 # ---------------------------------------------------------------------------
 
 
-class HotkeyRotationPayload(_PrometheonPayload):
+class HotkeyRotationPayload(PrometheonPayload):
     """Canonical payload for normal (old + new hotkey signature) rotation.
 
     Both the old and the new hotkey sign the same canonical bytes. A
@@ -192,7 +192,7 @@ class HotkeyRotationPayload(_PrometheonPayload):
 # ---------------------------------------------------------------------------
 
 
-class ColdkeyRecoveryPayload(_PrometheonPayload):
+class ColdkeyRecoveryPayload(PrometheonPayload):
     """Canonical payload for coldkey-backed hotkey recovery.
 
     Used when the old hotkey is unavailable but the coldkey is. Both the
@@ -220,7 +220,7 @@ class ColdkeyRecoveryPayload(_PrometheonPayload):
     recovery_cooldown_days: Literal[14] = 14
 
 
-class ManualRecoveryPayload(_PrometheonPayload):
+class ManualRecoveryPayload(PrometheonPayload):
     """Canonical payload for manual (2FA + Ops-approved) hotkey recovery.
 
     Used when neither the old hotkey nor the coldkey is available. Only
@@ -258,4 +258,5 @@ __all__ = [
     "IdentityVerifyPayload",
     "ManualRecoveryPayload",
     "NonceResponse",
+    "PrometheonPayload",
 ]
