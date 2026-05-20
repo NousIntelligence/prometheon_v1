@@ -54,10 +54,7 @@ def connect(network: ChainNetwork | str) -> Any:
     """
     import bittensor
 
-    if isinstance(network, ChainNetwork):
-        network_str = network.value
-    else:
-        network_str = network
+    network_str = network.value if isinstance(network, ChainNetwork) else network
     try:
         return bittensor.Subtensor(network=network_str)
     except Exception as exc:
@@ -122,10 +119,7 @@ def sync_metagraph_view(subtensor: Any, *, netuid: int) -> MetagraphView:
     uids_by_hotkey = {h: i for i, h in hotkeys_by_uid.items()}
 
     permits = getattr(raw, "validator_permit", None)
-    if permits is not None:
-        validator_permits = {i: bool(p) for i, p in enumerate(permits)}
-    else:
-        validator_permits = {}
+    validator_permits = {i: bool(p) for i, p in enumerate(permits)} if permits is not None else {}
 
     return MetagraphView(
         block_number=block_number,
