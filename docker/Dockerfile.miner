@@ -43,13 +43,10 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/b
 
 WORKDIR /opt/prometheon
 
-COPY pyproject.toml uv.lock README.md ./
+COPY pyproject.toml uv.lock README.md LICENSE ./
 COPY src ./src
 COPY neurons ./neurons
 COPY configs ./configs
-COPY scripts ./scripts
-COPY docs ./docs
-COPY LICENSE SECURITY.md CONTRIBUTING.md ./
 
 RUN uv sync --frozen --no-dev
 
