@@ -21,26 +21,35 @@ uv sync
 cp configs/testnet.example.toml ~/prometheon-testnet.toml
 ```
 
-Edit `~/prometheon-testnet.toml`:
+Edit `~/prometheon-testnet.toml` — only the `[wallet]` section needs to change to your own wallet name + hotkey. Every other field is the subnet-wide testnet baseline already filled in:
 
 ```toml
 [chain]
 network = "test"
-netuid = <testnet_netuid>
-version_key = <operator_provided_version_key>
+netuid = 481
+version_key = 0
 fail_on_weights_version_mismatch = false   # relaxed on testnet by default
 allow_legacy_sdk_without_mechid = false    # local-only flag; do not relax
 
+[wallet]
+name = "<your wallet name>"
+hotkey = "<your hotkey name>"
+
 [platform]
-base_url = "https://stg.api.bitfan.example"
+base_url = "https://bitfan-production.up.railway.app"
 platform_instance_id = "bitfan-staging"
 api_token_env = "PROMETHEON_VALIDATOR_API_TOKEN"
 
-[platform.snapshot_keys."platform-staging-2026"]
-public_key = "0x<staging_ed25519_public_key>"
-not_before = "2026-01-01T00:00:00Z"
-not_after  = "2027-01-01T00:00:00Z"
+[platform.snapshot_keys."platform-staging-2026-05"]
+public_key = "0xff6ebda35c55062e4caa4551e844dbfe7af11ab72cfc713bd6d8edaa20cb4028"
+not_before = "2026-05-10T00:00:00Z"
+not_after  = "2026-11-22T00:00:00Z"
 status     = "active"
+
+[burn]
+enabled = true
+burn_hotkey = "5GTCFZ5YNUNUF5XdoFP4gnFMrEud3ddmvu8HGEMHf97npHfZ"
+manual_burn_rate_ppm = 150000
 ```
 
 ---
@@ -52,10 +61,10 @@ export PROMETHEON_VALIDATOR_API_TOKEN="<staging_token>"
 uv run prometheon verify-validator \
     --username <user> --email <email> \
     --wallet-name <wallet> --wallet-hotkey <hotkey> \
-    --platform-base-url https://stg.api.bitfan.example \
+    --platform-base-url https://bitfan-production.up.railway.app \
     --platform-instance-id bitfan-staging \
     --chain-network test \
-    --netuid <testnet_netuid>
+    --netuid 481
 ```
 
 ---
