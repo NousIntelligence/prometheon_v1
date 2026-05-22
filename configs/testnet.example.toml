@@ -1,11 +1,19 @@
-# Prometheon Phase 1 — example validator configuration (Bittensor testnet).
+# Prometheon Phase 1 — validator configuration for Bittensor testnet (netuid 481).
 #
-# Copy this file to configs/testnet.local.toml (gitignored), fill in the
-# placeholder values, and reference it via `prometheon validator run --config ...`.
+# Subnet-wide values (chain, platform, snapshot key, burn target) are baked in
+# below and match what the BitFan staging platform signs. The only fields each
+# operator changes are `[wallet]` (their own wallet name + hotkey) and the
+# `PROMETHEON_VALIDATOR_API_TOKEN` environment variable.
+#
+# Usage:
+#   cp configs/testnet.example.toml ~/prometheon-testnet.toml
+#   # edit [wallet] to match your registered hotkey
+#   export PROMETHEON_VALIDATOR_API_TOKEN="<token issued by BitFan staging>"
+#   uv run prometheon validator run --config ~/prometheon-testnet.toml
 
 [chain]
 network = "test"
-netuid = 0   # set to the deployed testnet netuid
+netuid = 481
 version_key = 0
 fail_on_weights_version_mismatch = false
 allow_legacy_sdk_without_mechid = false
@@ -15,15 +23,15 @@ name = "validator"
 hotkey = "default"
 
 [platform]
-base_url = "https://stg.api.bitfan.example"
+base_url = "https://bitfan-production.up.railway.app"
 platform_instance_id = "bitfan-staging"
 api_token_env = "PROMETHEON_VALIDATOR_API_TOKEN"
 request_timeout_seconds = 30
 
-[platform.snapshot_keys."platform-staging-2026"]
-public_key = "0x0000000000000000000000000000000000000000000000000000000000000000"
-not_before = "2026-01-01T00:00:00Z"
-not_after  = "2027-01-01T00:00:00Z"
+[platform.snapshot_keys."platform-staging-2026-05"]
+public_key = "0xff6ebda35c55062e4caa4551e844dbfe7af11ab72cfc713bd6d8edaa20cb4028"
+not_before = "2026-05-10T00:00:00Z"
+not_after  = "2026-11-22T00:00:00Z"
 status     = "active"
 
 [validator]
@@ -43,8 +51,8 @@ weight_units = 1_000_000_000
 
 [burn]
 enabled = true
-burn_hotkey = "5DPLACEHOLDERburnHotkeyForTestnetXXXXXXXXXXXXXXXXXXXXXXXX"
-manual_burn_rate_ppm = 0
+burn_hotkey = "5GTCFZ5YNUNUF5XdoFP4gnFMrEud3ddmvu8HGEMHf97npHfZ"
+manual_burn_rate_ppm = 150000
 
 [scheduler]
 snapshot_refresh_interval_minutes = 30
