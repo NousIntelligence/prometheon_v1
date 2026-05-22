@@ -31,22 +31,22 @@ class SnapshotMode(str, Enum):
 # Identity endpoints
 # ---------------------------------------------------------------------------
 
-NONCE_PATH: Final[str] = "/v1/prometheon/identity/nonce"
-VERIFY_PATH: Final[str] = "/v1/prometheon/identity/verify"
-ROTATE_HOTKEY_PATH: Final[str] = "/v1/prometheon/identity/rotate-hotkey"
-RECOVER_HOTKEY_PATH: Final[str] = "/v1/prometheon/identity/recover-hotkey"
+NONCE_PATH: Final[str] = "/api/v1/prometheon/identity/nonce"
+VERIFY_PATH: Final[str] = "/api/v1/prometheon/identity/verify"
+ROTATE_HOTKEY_PATH: Final[str] = "/api/v1/prometheon/identity/rotate-hotkey"
+RECOVER_HOTKEY_PATH: Final[str] = "/api/v1/prometheon/identity/recover-hotkey"
 
 
 # ---------------------------------------------------------------------------
 # Snapshot endpoints
 # ---------------------------------------------------------------------------
 
-AGGREGATE_PATH_TEMPLATE: Final[str] = "/v1/prometheon/phase1/snapshots/{activity_date}/aggregate"
+AGGREGATE_PATH_TEMPLATE: Final[str] = "/api/v1/prometheon/phase1/snapshots/{activity_date}/aggregate"
 DETAILED_MANIFEST_PATH_TEMPLATE: Final[str] = (
-    "/v1/prometheon/phase1/snapshots/{activity_date}/detailed/manifest"
+    "/api/v1/prometheon/phase1/snapshots/{activity_date}/detailed/manifest"
 )
 DETAILED_PAGE_PATH_TEMPLATE: Final[str] = (
-    "/v1/prometheon/phase1/snapshots/{activity_date}/detailed/pages/{page_index}"
+    "/api/v1/prometheon/phase1/snapshots/{activity_date}/detailed/pages/{page_index}"
 )
 
 

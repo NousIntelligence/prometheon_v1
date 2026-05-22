@@ -195,7 +195,7 @@ def test_domain_envelope_hash_matches_sha256_of_envelope() -> None:
     payload = {
         "domain": DOMAIN_API_REQUEST,
         "method": "GET",
-        "path": "/v1/prometheon/phase1/snapshots/latest/aggregate",
+        "path": "/api/v1/prometheon/phase1/snapshots/latest/aggregate",
         "netuid": 123,
     }
     import rfc8785

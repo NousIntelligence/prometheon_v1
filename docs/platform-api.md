@@ -46,7 +46,7 @@ Both sides must produce byte-identical canonical bytes against the shared fixtur
 
 ## Identity Endpoints
 
-### `POST /v1/prometheon/identity/nonce`
+### `POST /api/v1/prometheon/identity/nonce`
 
 Request body:
 
@@ -81,7 +81,7 @@ Nonce TTL: 10 minutes. The nonce is bound to `(account, role, action, netuid, ho
 
 ---
 
-### `POST /v1/prometheon/identity/verify`
+### `POST /api/v1/prometheon/identity/verify`
 
 Body shape (envelope):
 
@@ -99,7 +99,7 @@ On success the Platform sets `<role>_verified = true` for the linked account, co
 
 ---
 
-### `POST /v1/prometheon/identity/rotate-hotkey`
+### `POST /api/v1/prometheon/identity/rotate-hotkey`
 
 Body shape:
 
@@ -118,7 +118,7 @@ Both signatures cover the same canonical bytes. Platform enforces a 7-day cooldo
 
 ---
 
-### `POST /v1/prometheon/identity/recover-hotkey`
+### `POST /api/v1/prometheon/identity/recover-hotkey`
 
 Two payload variants share the same endpoint, discriminated by `recovery_method`:
 
@@ -147,7 +147,7 @@ Skew window: 300 seconds. Nonce TTL: 600 seconds.
 
 ---
 
-### `GET /v1/prometheon/phase1/snapshots/{activity_date}/aggregate`
+### `GET /api/v1/prometheon/phase1/snapshots/{activity_date}/aggregate`
 
 `{activity_date}` is either `latest` (Platform-authoritative latest) or a literal `YYYY-MM-DD`.
 
@@ -163,7 +163,7 @@ Response: a full aggregate snapshot. The validator verifies:
 
 ---
 
-### `GET /v1/prometheon/phase1/snapshots/{activity_date}/detailed/manifest`
+### `GET /api/v1/prometheon/phase1/snapshots/{activity_date}/detailed/manifest`
 
 Returns the **signed** detailed-mode manifest. The manifest carries the same locked-policy and environment fields as the aggregate response, plus:
 
@@ -178,7 +178,7 @@ Validator-side checks include `page_count == len(pages)`, sequential page indice
 
 ---
 
-### `GET /v1/prometheon/phase1/snapshots/{activity_date}/detailed/pages/{page_index}`
+### `GET /api/v1/prometheon/phase1/snapshots/{activity_date}/detailed/pages/{page_index}`
 
 Page body shape includes its own `page_hash`. The validator recomputes the hash from the page body minus `page_hash` and asserts it matches the manifest's entry. Pages themselves are **not** Ed25519-signed — the signed manifest's `page_hash` references are the trust root.
 

@@ -4,7 +4,7 @@ This module provides:
 
 - :class:`ClientInfo` — common envelope metadata field.
 - :class:`IdentityVerifySignatures` and :class:`IdentityVerifyEnvelope` —
-  the wire shape for ``POST /v1/prometheon/identity/verify``.
+  the wire shape for ``POST /api/v1/prometheon/identity/verify``.
 - Shared verification helpers used by this module and by :mod:`prometheon.
   identity.rotation` and :mod:`prometheon.identity.recovery`.
 - :func:`verify_identity_envelope` — full end-to-end verification of an
@@ -83,7 +83,7 @@ class IdentityVerifySignatures(BaseModel):
 
 
 class IdentityVerifyEnvelope(BaseModel):
-    """Wire envelope for ``POST /v1/prometheon/identity/verify``."""
+    """Wire envelope for ``POST /api/v1/prometheon/identity/verify``."""
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", frozen=True)
 

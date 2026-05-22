@@ -9,7 +9,7 @@ in Phase 1:
 - :class:`ManualRecoveryPayload`     — ``PROMETHEON_HOTKEY_RECOVERY_V1`` (manual)
 
 It also defines :class:`NonceResponse`, the parsed shape of the Platform's
-``POST /v1/prometheon/identity/nonce`` reply. The hashes returned in that
+``POST /api/v1/prometheon/identity/nonce`` reply. The hashes returned in that
 response are signed verbatim by the CLI — neither the CLI nor the validator
 re-normalize username or email locally, which removes the largest single
 source of cross-implementation drift.
@@ -102,7 +102,7 @@ class PrometheonPayload(BaseModel):
 
 
 class NonceResponse(BaseModel):
-    """The Platform's reply to ``POST /v1/prometheon/identity/nonce``.
+    """The Platform's reply to ``POST /api/v1/prometheon/identity/nonce``.
 
     The Platform owns username and email canonicalization. It returns the
     canonical hashes in this response so the CLI can sign them verbatim.
