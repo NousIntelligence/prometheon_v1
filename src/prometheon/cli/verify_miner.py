@@ -102,6 +102,8 @@ def verify_miner(
                 username=username,
                 email=email,
                 hotkey_ss58=keypair.ss58_address,
+                chain_network=chain,
+                platform_instance_id=platform_instance_id,
             )
         )
         nonce = NonceResponse.model_validate(nonce_dict)
