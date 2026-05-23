@@ -166,8 +166,15 @@ def _snapshot_dict_without_signature(
 
     The Platform signs over the JCS canonicalization of the object
     *without* this field; verifiers must reconstruct that exact dict.
+
+    ``exclude_none=True`` matters here: optional metadata fields (e.g.
+    ``snapshot_build_id``) must not contribute ``null`` entries to the
+    canonical bytes when the field is unset, because the platform's
+    signing path omits missing fields entirely. With the flag set, the
+    verify path matches both shapes — platform includes the field with
+    a value, or omits it altogether.
     """
-    obj = snapshot.model_dump(mode="json")
+    obj = snapshot.model_dump(mode="json", exclude_none=True)
     obj.pop("platform_signature", None)
     return obj
 
