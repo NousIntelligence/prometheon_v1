@@ -41,7 +41,9 @@ RECOVER_HOTKEY_PATH: Final[str] = "/api/v1/prometheon/identity/recover-hotkey"
 # Snapshot endpoints
 # ---------------------------------------------------------------------------
 
-AGGREGATE_PATH_TEMPLATE: Final[str] = "/api/v1/prometheon/phase1/snapshots/{activity_date}/aggregate"
+AGGREGATE_PATH_TEMPLATE: Final[str] = (
+    "/api/v1/prometheon/phase1/snapshots/{activity_date}/aggregate"
+)
 DETAILED_MANIFEST_PATH_TEMPLATE: Final[str] = (
     "/api/v1/prometheon/phase1/snapshots/{activity_date}/detailed/manifest"
 )
