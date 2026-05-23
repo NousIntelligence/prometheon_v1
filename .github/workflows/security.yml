@@ -57,11 +57,12 @@ jobs:
       - name: Set up Python
         run: uv python install 3.11
 
-      - name: Install bandit
-        run: uv pip install bandit
-
       - name: Run bandit on src/
-        run: uv run bandit -r src/prometheon -ll -q
+        # `uv run --with bandit` provisions an ephemeral environment with
+        # bandit installed and runs the command inside it. Avoids the
+        # "No virtual environment found" error from `uv pip install` in
+        # a runner that has no pre-existing .venv.
+        run: uv run --with bandit bandit -r src/prometheon -ll -q
 
   verify-signatures:
     name: verify pushed commits are signed
