@@ -13,7 +13,7 @@ This guide walks through the full miner setup: register a hotkey, verify your Bi
 | Bittensor wallet | A coldkey + hotkey pair under `~/.bittensor/wallets/`. Create with `btcli wallet new_coldkey` and `btcli wallet new_hotkey`. |
 | Subnet registration | Register the hotkey on Prometheon's netuid with `btcli subnet register`. |
 | BitFan platform account | Sign up at the BitFan platform with a stable username and verified email. |
-| BitFan API token | Issued by the platform; expose to the CLI via the `PROMETHEON_MINER_API_TOKEN` environment variable. |
+| Bootstrap token (first verify only) | Obtained from the [BitFan Partner Portal](https://bitfanweb-production-658c.up.railway.app/me/partner/prometheon) — click *Get bootstrap token* with role *miner*. The token is one-time, scoped to `identity:verify:miner`, expires after one hour, and is auto-revoked the moment `verify-miner` succeeds. Export it as `PROMETHEON_MINER_API_TOKEN`. |
 
 Install the CLI:
 
@@ -26,10 +26,10 @@ prometheon --version
 
 ## Step 1 — Verify Your BitFan Account
 
-Link your Bittensor hotkey to your BitFan account by signing a canonical identity payload with your hotkey:
+Link your Bittensor hotkey to your BitFan account by signing a canonical identity payload with your hotkey. The first call uses the one-time bootstrap token from the Partner Portal:
 
 ```bash
-export PROMETHEON_MINER_API_TOKEN="<your_bitfan_api_token>"
+export PROMETHEON_MINER_API_TOKEN="<bootstrap token from Partner Portal>"
 
 prometheon verify-miner \
     --username           <bitfan_username> \
@@ -42,7 +42,7 @@ prometheon verify-miner \
     --netuid             <netuid>
 ```
 
-On success the platform sets `miner_verified = true` for your account and links it to your hotkey. The CLI never re-normalises your username or email locally — the platform returns canonical hashes that the CLI signs verbatim, so there is no risk of normalisation drift between your machine and the platform.
+On success the platform sets `miner_verified = true` for your account, links it to your hotkey, and revokes the bootstrap token in the same transaction. The CLI never re-normalises your username or email locally — the platform returns canonical hashes that the CLI signs verbatim, so there is no risk of normalisation drift between your machine and the platform.
 
 If the platform reports an error (`AUTH_INVALID_TOKEN`, `NONCE_EXPIRED`, `HOTKEY_ALREADY_LINKED`, etc.), the CLI surfaces the error code and a clear message. See [`security.md`](./security.md) for the full catalog.
 
