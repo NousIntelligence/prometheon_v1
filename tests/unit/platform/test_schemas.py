@@ -199,6 +199,18 @@ class TestAggregateSnapshot:
         assert snap.mechid == 0
         assert len(snap.miners) == 2
 
+    def test_accepts_optional_snapshot_build_id(self) -> None:
+        # Platform-side metadata that we accept but do not act on.
+        snap = AggregateSnapshot(
+            **_aggregate_kwargs(snapshot_build_id="c528bfbc-4e79-4673-89d2-87a34cf8a5e4")
+        )
+        assert snap.snapshot_build_id == "c528bfbc-4e79-4673-89d2-87a34cf8a5e4"
+
+    def test_snapshot_build_id_defaults_to_none(self) -> None:
+        # Older snapshots without the field still parse cleanly.
+        snap = AggregateSnapshot(**_aggregate_kwargs())
+        assert snap.snapshot_build_id is None
+
     def test_locks_daily_score_cap_at_20(self) -> None:
         with pytest.raises(ValidationError):
             AggregateSnapshot(**_aggregate_kwargs(daily_score_cap=21))
