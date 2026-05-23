@@ -33,13 +33,7 @@ classifiers = [
 ]
 
 authors = [
-    { name = "AisA-wdym" },
-    { name = "dongTigerLU" },
-    { name = "yuukiakito" },
-]
-
-maintainers = [
-    { name = "AisA-wdym" },
+    { name = "NousIntelligence" },
 ]
 
 # Runtime dependencies. Versions follow the binding pins documented in the
