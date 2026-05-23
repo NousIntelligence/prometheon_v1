@@ -20,7 +20,9 @@ def has_validator_permit(metagraph: MetagraphView, hotkey: str) -> bool:
     uid = metagraph.uid_for(hotkey)
     if uid is None:
         return False
-    return bool(metagraph.validator_permits.get(uid, False))
+    # validator_permits is typed dict[int, bool]; the bool() coercion this
+    # used to wrap was dead weight.
+    return metagraph.validator_permits.get(uid, False)
 
 
 __all__ = ["has_validator_permit"]
