@@ -448,6 +448,9 @@ class TestSnapshotFlows:
         assert headers["x-prometheon-timestamp"].endswith("Z")
         # The signature is 0x + 128 hex chars.
         assert len(headers["x-prometheon-request-signature"]) == 130
+        # The platform's EnvMatchGuard reads these on GETs (no body).
+        assert headers["x-prometheon-chain-network"] == ChainNetwork.FINNEY.value
+        assert headers["x-prometheon-platform-instance-id"] == PLATFORM_INSTANCE_ID
 
     def test_signed_get_signature_verifies_against_request_payload(
         self, alice_keypair: Keypair
