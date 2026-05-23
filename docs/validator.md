@@ -1,0 +1,168 @@
+# Validator Guide
+
+Validators verify a daily platform-signed snapshot, transform it deterministically into a weight vector, and submit the result on-chain. There is no subjective scoring: every compliant validator running the same inputs produces the same output.
+
+This guide walks through the full validator setup, configuration, and operational loop.
+
+---
+
+## Prerequisites
+
+| Requirement | Notes |
+|---|---|
+| Bittensor wallet | Coldkey + hotkey pair. Validator permits are chain-governed; you need a permit to set weights. |
+| BitFan platform account | Verified as **validator** (not miner). |
+| Validator API token | Issued by BitFan with `snapshot:read:aggregate` (or `:detailed`) scope. Exported via env var. |
+| Linux host | The runner is a single Python process; CPU and disk footprint are minimal. |
+
+Install:
+
+```bash
+pip install prometheon            # or `uv sync` from the repository
+```
+
+---
+
+## Step 1 — Verify Your Validator Account
+
+```bash
+export PROMETHEON_VALIDATOR_API_TOKEN="<your_validator_token>"
+
+prometheon verify-validator \
+    --username             <bitfan_username> \
+    --email                <bitfan_email> \
+    --wallet-name          <coldkey_directory_name> \
+    --wallet-hotkey        <hotkey_file_name> \
+    --platform-base-url    https://api.bitfan.example \
+    --platform-instance-id bitfan-production \
+    --chain-network        finney \
+    --netuid               <netuid>
+```
+
+On success the platform sets `validator_verified = true` for your account and binds your hotkey. The token's scope determines whether you can subsequently call the aggregate-mode or detailed-mode snapshot endpoints.
+
+---
+
+## Step 2 — Configure the Runtime
+
+Copy one of the example configs and fill in your values:
+
+```bash
+cp configs/finney.example.toml ~/prometheon-validator.toml
+```
+
+Edit the key sections:
+
+```toml
+[chain]
+network = "finney"
+netuid = <real_netuid>
+version_key = <operator_provided_version_key>
+fail_on_weights_version_mismatch = true   # do not relax on finney
+
+[wallet]
+name = "validator"
+hotkey = "default"
+
+[platform]
+base_url = "https://api.bitfan.example"
+platform_instance_id = "bitfan-production"
+api_token_env = "PROMETHEON_VALIDATOR_API_TOKEN"
+
+[platform.snapshot_keys."platform-main-2026-05"]
+public_key = "0x<32_bytes_lowercase_hex>"
+not_before = "2026-05-01T00:00:00Z"
+not_after  = "2026-09-01T00:00:00Z"
+status     = "active"
+
+[validator]
+mode = "aggregate"             # or "detailed"
+activity_date = "latest"
+submit_weights = true
+dry_run = false
+
+[burn]
+enabled = true
+burn_hotkey = "<configured_burn_hotkey>"
+manual_burn_rate_ppm = 150000  # placeholder — the signed snapshot's value wins live
+```
+
+The runtime will refuse to start if:
+
+- Any locked Phase 1 constant in the config (`daily_score_cap`, `active_member_score_threshold`, `min_active_members_for_reward`, `top_k`, `weight_units`) deviates from the spec.
+- The config sets `allow_legacy_sdk_without_mechid = true` on any network other than `local`.
+- The `platform.snapshot_keys` map is empty.
+
+See [`deployment/mainnet.md`](./deployment/mainnet.md) for the operational checklist around `version_key`, snapshot key rotation, and chain hyperparameter compatibility.
+
+---
+
+## Step 3 — Run
+
+```bash
+export PROMETHEON_VALIDATOR_API_TOKEN="<token>"
+prometheon validator run --config ~/prometheon-validator.toml
+```
+
+The runner loops forever, performing one cycle every
+`scheduler.weight_submission_check_interval_minutes`. Each cycle:
+
+1. Fetches and verifies the latest signed snapshot (Ed25519 signature, `records_hash`, for detailed mode every page hash + global ordering + duplicate `user_ref` rejection).
+2. Re-syncs the metagraph fresh from the chain.
+3. Runs the pre-submission policy gate: commit-reveal detection, SDK `mechid` support, `weights_version` policy check.
+4. Runs the pure mechanism engine. Result is either `status="ready"` or `status="no_valid_weight_target"` (no eligible miners and no burn hotkey in the metagraph — Case D).
+5. For ready plans: re-resolves every UID, converts to u16, calls `set_weights(version_key, mechid=0)`.
+6. Persists `.validator-state/state.json` atomically and appends an event line to `.validator-state/events.ndjson`.
+
+For one-shot or scheduled execution:
+
+```bash
+prometheon validator run --config <path> --once
+prometheon validator run --config <path> --cycles 5
+```
+
+For dry-run (no chain submission):
+
+```bash
+# Edit the config:
+# [validator]
+# submit_weights = false
+# or
+# dry_run = true
+```
+
+---
+
+## Step 4 — Monitor
+
+The fastest local check:
+
+```bash
+prometheon status
+```
+
+prints the persisted state file (last snapshot accepted, last block submitted, last extrinsic hash, last error). Exit code 0 = state present; exit code 2 = no cycle has completed yet.
+
+For an event-by-event view, tail the NDJSON log:
+
+```bash
+tail -F .validator-state/events.ndjson | jq .
+```
+
+Event types emitted:
+
+- `cycle_submitted` — successful chain submission.
+- `cycle_no_valid_weight_target` — Case D (fail closed; no submission).
+- `cycle_dry_run` — `dry_run=true` or `submit_weights=false`.
+- `cycle_failed` — exception during a cycle (the runner re-raises after persisting).
+
+---
+
+## Operational Notes
+
+- **Snapshot key rotation**: the platform team will publish new `platform_key_id` entries before retiring an old one. Add the new entry to your `[platform.snapshot_keys]` config block before the platform starts signing with it. Multiple active keys may coexist.
+- **`weights_version`**: changes when the subnet owner bumps the on-chain weight version. The runtime detects a mismatch at startup and fails closed by default on `finney`.
+- **Commit-reveal**: not supported in Phase 1. If the subnet enables commit-reveal at the chain level the runner will fail closed (`chain.commit_reveal_enabled`).
+- **Activity cutoff**: respected by the scheduler. A cycle that arrives too close to the cutoff window will be skipped to avoid an out-of-bounds submission.
+
+For deployment on each environment see the dedicated guides under [`deployment/`](./deployment/).
