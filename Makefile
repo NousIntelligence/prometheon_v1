@@ -55,6 +55,9 @@ format: ## Run ruff format.
 format-check: ## Verify ruff format would be a no-op.
 	$(UV) run ruff format --check $(SRC_DIR) $(TESTS_DIR) $(NEURONS_DIR)
 
+.PHONY: format-all
+format-all: lint-fix format ## Run lint-fix then format. Convenience alias.
+
 .PHONY: typecheck
 typecheck: ## Run mypy on the package.
 	$(UV) run mypy $(SRC_DIR)
