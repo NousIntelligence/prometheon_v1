@@ -67,7 +67,9 @@ def verify_validator(
     On success the platform sets ``validator_verified = true`` on the
     linked account and consumes the issued nonce.
     """
-    token = read_api_token_or_exit(env_var=api_token_env, explicit=api_token)
+    token = read_api_token_or_exit(
+        env_var=api_token_env, explicit=api_token, bootstrap_for_role="validator"
+    )
     keypair = load_hotkey_or_exit(name=wallet_name, hotkey_name=wallet_hotkey)
     chain = ChainNetwork(chain_network)
 
