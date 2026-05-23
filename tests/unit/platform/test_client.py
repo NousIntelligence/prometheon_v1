@@ -92,7 +92,7 @@ def _error_json(
 ) -> httpx.Response:
     return httpx.Response(
         status_code,
-        content=json.dumps({"error": error_code, "detail": detail}).encode("utf-8"),
+        content=json.dumps({"code": error_code, "message": detail}).encode("utf-8"),
         headers={"Content-Type": "application/json"},
     )
 
