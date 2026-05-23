@@ -30,8 +30,8 @@ A miner token must not grant snapshot access; a validator token must not grant m
 
 `/api/v1/prometheon/identity/verify` is now the canonical first-time entry: a fresh BitFan user does not need any pre-existing `*_verified` flag to call it. The flow:
 
-1. The user signs into the BitFan web app and opens the Partner Portal at `https://bitfan.ai/me/partner/prometheon`.
-2. They click *Get bootstrap token* with their role (`miner` or `validator`). The Platform issues a token under the existing partner session:
+1. The user signs into the BitFan web app and opens the BitFan portal at `https://bitfan.ai/me/prometheon`.
+2. They click *Get bootstrap token* with their role (`miner` or `validator`). The Platform issues a token under the existing BitFan session:
 
    ```http
    POST /api/partner/v1/prometheon/api-tokens/bootstrap
@@ -51,7 +51,7 @@ A miner token must not grant snapshot access; a validator token must not grant m
    ```
 
 3. The user exports the `raw_token` into `PROMETHEON_{MINER,VALIDATOR}_API_TOKEN` and runs `prometheon verify-{miner,validator}`.
-4. `/identity/verify` creates the role profile, grants the role flag, and revokes the bootstrap token atomically. The CLI never calls the bootstrap endpoint directly — that lives entirely in the Partner Portal UI.
+4. `/identity/verify` creates the role profile, grants the role flag, and revokes the bootstrap token atomically. The CLI never calls the bootstrap endpoint directly — that lives entirely in the BitFan portal UI.
 
 Bootstrap tokens are one-time, scoped to `identity:verify:<role>` only, expire after one hour, and cannot be used for snapshot or rotation calls. If the viewer already holds the requested role flag the bootstrap endpoint returns `409 already_verified`; clients should use the regular issue endpoint instead. Re-verifying with a fresh bootstrap token is idempotent for already-verified accounts (the role flag stays set; the hotkey link is refreshed).
 
