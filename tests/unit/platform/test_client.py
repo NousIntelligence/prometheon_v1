@@ -297,7 +297,7 @@ class TestSnapshotFlows:
         assert isinstance(snapshot, AggregateSnapshot)
         assert snapshot.mode == "aggregate"
         # URL must include "latest" (the default).
-        assert captured["url"] == (f"{BASE_URL}/v1/prometheon/phase1/snapshots/latest/aggregate")
+        assert captured["url"] == (f"{BASE_URL}/api/v1/prometheon/phase1/snapshots/latest/aggregate")
 
     def test_signed_get_includes_all_required_headers(self, alice_keypair: Keypair) -> None:
         captured: dict[str, Any] = {}
@@ -342,7 +342,7 @@ class TestSnapshotFlows:
         # Reconstruct what the server would build from the request.
         reconstructed = ApiRequestPayload(
             method="GET",
-            path="/v1/prometheon/phase1/snapshots/latest/aggregate",
+            path="/api/v1/prometheon/phase1/snapshots/latest/aggregate",
             query_hash="0x" + "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
             body_hash="0x" + "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
             timestamp=headers["x-prometheon-timestamp"],
@@ -377,7 +377,7 @@ class TestSnapshotFlows:
             client.get_aggregate_snapshot("2026-05-18")
 
         assert captured["url"] == (
-            f"{BASE_URL}/v1/prometheon/phase1/snapshots/2026-05-18/aggregate"
+            f"{BASE_URL}/api/v1/prometheon/phase1/snapshots/2026-05-18/aggregate"
         )
 
     def test_snapshot_call_without_keypair_raises(self) -> None:
@@ -498,5 +498,5 @@ class TestDetailedSnapshotFlows:
 
         assert isinstance(page, DetailedPage)
         assert captured["url"] == (
-            f"{BASE_URL}/v1/prometheon/phase1/snapshots/2026-05-18/detailed/pages/0"
+            f"{BASE_URL}/api/v1/prometheon/phase1/snapshots/2026-05-18/detailed/pages/0"
         )

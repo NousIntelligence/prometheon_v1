@@ -431,7 +431,7 @@ class TestDetailedPage:
 def _api_kwargs(**overrides: Any) -> dict[str, Any]:
     base: dict[str, Any] = {
         "method": "GET",
-        "path": "/v1/prometheon/phase1/snapshots/latest/aggregate",
+        "path": "/api/v1/prometheon/phase1/snapshots/latest/aggregate",
         "query_hash": VALID_HEX32,
         "body_hash": VALID_HEX32,
         "timestamp": "2026-05-20T00:00:00Z",
@@ -461,7 +461,7 @@ class TestApiRequestPayload:
 
     def test_mode_is_optional(self) -> None:
         # Identity endpoints don't carry a mode.
-        p = ApiRequestPayload(**_api_kwargs(mode=None, path="/v1/prometheon/identity/nonce"))
+        p = ApiRequestPayload(**_api_kwargs(mode=None, path="/api/v1/prometheon/identity/nonce"))
         assert p.mode is None
 
     def test_rejects_path_without_leading_slash(self) -> None:
@@ -476,7 +476,7 @@ class TestApiRequestPayload:
 
     def test_rejects_path_with_trailing_slash(self) -> None:
         with pytest.raises(ValidationError, match="must not end with '/'"):
-            ApiRequestPayload(**_api_kwargs(path="/v1/prometheon/identity/nonce/"))
+            ApiRequestPayload(**_api_kwargs(path="/api/v1/prometheon/identity/nonce/"))
 
     def test_rejects_unknown_method(self) -> None:
         with pytest.raises(ValidationError):

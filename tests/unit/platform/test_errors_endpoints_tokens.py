@@ -113,10 +113,10 @@ class TestPlatformErrorFromResponseBody:
 
 class TestIdentityEndpointConstants:
     def test_paths_are_absolute_and_versioned(self) -> None:
-        assert NONCE_PATH == "/v1/prometheon/identity/nonce"
-        assert VERIFY_PATH == "/v1/prometheon/identity/verify"
-        assert ROTATE_HOTKEY_PATH == "/v1/prometheon/identity/rotate-hotkey"
-        assert RECOVER_HOTKEY_PATH == "/v1/prometheon/identity/recover-hotkey"
+        assert NONCE_PATH == "/api/v1/prometheon/identity/nonce"
+        assert VERIFY_PATH == "/api/v1/prometheon/identity/verify"
+        assert ROTATE_HOTKEY_PATH == "/api/v1/prometheon/identity/rotate-hotkey"
+        assert RECOVER_HOTKEY_PATH == "/api/v1/prometheon/identity/recover-hotkey"
 
     def test_all_identity_paths_start_with_slash(self) -> None:
         for path in (NONCE_PATH, VERIFY_PATH, ROTATE_HOTKEY_PATH, RECOVER_HOTKEY_PATH):
@@ -135,11 +135,11 @@ class TestSnapshotMode:
 
 class TestAggregatePath:
     def test_latest_by_default(self) -> None:
-        assert aggregate_path() == "/v1/prometheon/phase1/snapshots/latest/aggregate"
+        assert aggregate_path() == "/api/v1/prometheon/phase1/snapshots/latest/aggregate"
 
     def test_specific_date(self) -> None:
         path = aggregate_path("2026-05-18")
-        assert path == "/v1/prometheon/phase1/snapshots/2026-05-18/aggregate"
+        assert path == "/api/v1/prometheon/phase1/snapshots/2026-05-18/aggregate"
 
     def test_template_renders_to_real_path(self) -> None:
         # Format string + helper output stay in lockstep.
@@ -154,12 +154,12 @@ class TestAggregatePath:
 class TestDetailedManifestPath:
     def test_latest_by_default(self) -> None:
         assert (
-            detailed_manifest_path() == "/v1/prometheon/phase1/snapshots/latest/detailed/manifest"
+            detailed_manifest_path() == "/api/v1/prometheon/phase1/snapshots/latest/detailed/manifest"
         )
 
     def test_specific_date(self) -> None:
         assert detailed_manifest_path("2026-05-18") == (
-            "/v1/prometheon/phase1/snapshots/2026-05-18/detailed/manifest"
+            "/api/v1/prometheon/phase1/snapshots/2026-05-18/detailed/manifest"
         )
 
     def test_template_renders_to_real_path(self) -> None:
@@ -171,11 +171,11 @@ class TestDetailedManifestPath:
 class TestDetailedPagePath:
     def test_well_formed_inputs(self) -> None:
         path = detailed_page_path("2026-05-18", 0)
-        assert path == "/v1/prometheon/phase1/snapshots/2026-05-18/detailed/pages/0"
+        assert path == "/api/v1/prometheon/phase1/snapshots/2026-05-18/detailed/pages/0"
 
     def test_higher_page_index(self) -> None:
         path = detailed_page_path("2026-05-18", 3)
-        assert path == "/v1/prometheon/phase1/snapshots/2026-05-18/detailed/pages/3"
+        assert path == "/api/v1/prometheon/phase1/snapshots/2026-05-18/detailed/pages/3"
 
     def test_rejects_latest_segment(self) -> None:
         # Pages must reference the concrete date returned by the manifest.

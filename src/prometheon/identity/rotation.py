@@ -5,7 +5,7 @@ new hotkey over the same canonical payload. This module owns:
 
 - :class:`HotkeyRotationSignatures` — the two-signature container.
 - :class:`HotkeyRotationEnvelope` — the wire shape for
-  ``POST /v1/prometheon/identity/rotate-hotkey``.
+  ``POST /api/v1/prometheon/identity/rotate-hotkey``.
 - :func:`verify_rotation_envelope` — the full pipeline that mirrors the
   Platform-side checks for a rotation request.
 
@@ -50,7 +50,7 @@ class HotkeyRotationSignatures(BaseModel):
 
 
 class HotkeyRotationEnvelope(BaseModel):
-    """Wire envelope for ``POST /v1/prometheon/identity/rotate-hotkey``."""
+    """Wire envelope for ``POST /api/v1/prometheon/identity/rotate-hotkey``."""
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", frozen=True)
 
