@@ -159,6 +159,8 @@ class TestIdentityFlows:
                     username="alice",
                     email="alice@example.com",
                     hotkey_ss58=SS58_A,
+                    chain_network=ChainNetwork.FINNEY,
+                    platform_instance_id=PLATFORM_INSTANCE_ID,
                 )
             )
 
@@ -182,6 +184,8 @@ class TestIdentityFlows:
             username="alice",
             email="alice@example.com",
             hotkey_ss58=SS58_A,
+            chain_network=ChainNetwork.FINNEY,
+            platform_instance_id=PLATFORM_INSTANCE_ID,
         )  # any BaseModel works for the wire test
 
         transport = httpx.MockTransport(handler)
@@ -210,6 +214,8 @@ class TestIdentityFlows:
                     username="alice",
                     email="alice@example.com",
                     hotkey_ss58=SS58_A,
+                    chain_network=ChainNetwork.FINNEY,
+                    platform_instance_id=PLATFORM_INSTANCE_ID,
                 )
             )
         assert exc_info.value.status_code == 401
@@ -224,6 +230,8 @@ class TestIdentityFlows:
             username="alice",
             email="alice@example.com",
             hotkey_ss58=SS58_A,
+            chain_network=ChainNetwork.FINNEY,
+            platform_instance_id=PLATFORM_INSTANCE_ID,
         )
         transport = httpx.MockTransport(handler)
         with _make_client(transport=transport) as client, pytest.raises(NonceExpiredError):

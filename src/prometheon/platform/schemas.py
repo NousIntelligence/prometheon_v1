@@ -59,6 +59,13 @@ class NonceRequestBody(BaseModel):
 
     The CLI sends ``username`` and ``email`` so the platform can return
     canonical hashes. The hotkey is bound to the issued nonce.
+
+    ``chain_network`` and ``platform_instance_id`` are included so the
+    platform's environment-binding guard (which runs on every identity
+    endpoint) can refuse cross-environment replays. The other identity
+    endpoints (verify, rotate, recover) supply these fields via the
+    signed payload; the nonce request supplies them directly because
+    there is no signed payload at this stage.
     """
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", frozen=True)
@@ -68,6 +75,8 @@ class NonceRequestBody(BaseModel):
     username: str = Field(min_length=1, max_length=255)
     email: str = Field(min_length=3, max_length=320)
     hotkey_ss58: str = Field(pattern=_SS58_LOOSE_RE)
+    chain_network: ChainNetwork
+    platform_instance_id: str = Field(min_length=1)
 
 
 # ---------------------------------------------------------------------------

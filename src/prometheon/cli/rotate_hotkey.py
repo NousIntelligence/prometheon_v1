@@ -97,6 +97,8 @@ def rotate_hotkey(
                 username=username,
                 email=email,
                 hotkey_ss58=old_keypair.ss58_address,
+                chain_network=chain,
+                platform_instance_id=platform_instance_id,
             )
         )
         platform_account_id = nonce_dict["platform_account_id"]
