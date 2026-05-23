@@ -26,6 +26,12 @@ from prometheon.platform.client import BitFanClient
 from prometheon.security.hashes import api_token_hash
 from prometheon.version import __version__
 
+# Where operators obtain a one-time bootstrap token for the first
+# `verify-miner` / `verify-validator` call. The web app issues the
+# token under the user's existing BitFan session and scopes it to
+# `identity:verify:<role>`; `/identity/verify` revokes it on success.
+PARTNER_PORTAL_URL = "https://bitfan.ai/me/partner/prometheon"
+
 
 def load_hotkey_or_exit(*, name: str, hotkey_name: str) -> Any:
     """Load a wallet hotkey keypair or terminate the CLI with a clear error."""
@@ -45,12 +51,22 @@ def load_coldkey_or_exit(*, name: str, hotkey_name: str) -> Any:
         raise click.ClickException(f"could not load coldkey: {exc}") from exc
 
 
-def read_api_token_or_exit(*, env_var: str | None, explicit: str | None) -> str:
+def read_api_token_or_exit(
+    *,
+    env_var: str | None,
+    explicit: str | None,
+    bootstrap_for_role: str | None = None,
+) -> str:
     """Pick the API token from an explicit flag, an env var, or fail cleanly.
 
     Explicit ``--api-token`` wins (intended for one-off CLI runs); the
     environment variable is the documented operational path so secrets
     do not appear in shell history.
+
+    When ``bootstrap_for_role`` is set to ``"miner"`` or ``"validator"``,
+    a missing token raises with the bootstrap-token onboarding text
+    (Partner Portal URL + paste-and-export steps) instead of the generic
+    "token missing" message. Use this for the first-time verify flows.
     """
     if explicit:
         return explicit
@@ -58,9 +74,30 @@ def read_api_token_or_exit(*, env_var: str | None, explicit: str | None) -> str:
         value = os.environ.get(env_var)
         if value:
             return value
+
+    if bootstrap_for_role is not None:
+        raise click.ClickException(_bootstrap_token_help(env_var, bootstrap_for_role))
+
     raise click.ClickException(
-        "API token missing: pass --api-token or set the configured env var "
-        "(default: PROMETHEON_API_TOKEN)."
+        f"API token missing: pass --api-token or set the configured env var "
+        f"({env_var or 'PROMETHEON_API_TOKEN'})."
+    )
+
+
+def _bootstrap_token_help(env_var: str | None, role: str) -> str:
+    """Multi-line guidance shown when verify-{miner,validator} has no token."""
+    env_display = env_var or f"PROMETHEON_{role.upper()}_API_TOKEN"
+    return (
+        f"no {role} API token in env ({env_display} unset)\n"
+        "\n"
+        "To get started:\n"
+        f"  1. Open {PARTNER_PORTAL_URL}\n"
+        f'  2. Click "Get bootstrap token" with role {role!r}.\n'
+        "  3. Copy the token, then re-run with:\n"
+        f"       export {env_display}=<paste>\n"
+        "\n"
+        "The bootstrap token is one-time, scoped to identity:verify, "
+        "expires after one hour, and is auto-revoked on successful verify."
     )
 
 
