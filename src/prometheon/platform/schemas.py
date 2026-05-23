@@ -128,6 +128,11 @@ class AggregateSnapshot(BaseModel):
     platform_key_id: str = Field(min_length=1)
     records_hash: str = Field(pattern=_HEX32_RE)
     miners: list[MinerAggregateRecord]
+    # Opaque platform-side build identifier. We accept it so strict
+    # ``extra="forbid"`` doesn't reject the snapshot, but the engine
+    # ignores its value. The records_hash is computed over the miners
+    # array only, so this field never affects integrity checks.
+    snapshot_build_id: str | None = None
     platform_signature: str = Field(pattern=_HEX_SIG_RE)
 
     @model_validator(mode="after")
@@ -206,6 +211,8 @@ class DetailedManifest(BaseModel):
     page_count: int = Field(ge=0)
     pages: list[DetailedManifestPageEntry]
     records_hash: str = Field(pattern=_HEX32_RE)
+    # Opaque platform-side build identifier; see AggregateSnapshot.
+    snapshot_build_id: str | None = None
     platform_signature: str = Field(pattern=_HEX_SIG_RE)
 
     @model_validator(mode="after")

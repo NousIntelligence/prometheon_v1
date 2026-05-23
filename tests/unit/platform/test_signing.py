@@ -524,7 +524,10 @@ class TestVerifyAggregateSnapshot:
             MinerAggregateRecord(miner_hotkey=SS58_A, miner_score_points=1, active_member_count=1)
         ]
         snap = _build_signed_aggregate(ed25519_private_key, miners)
-        tampered_dict = snap.model_dump(mode="json")
+        # ``exclude_none=True`` matches the verify path's serialization choice
+        # so the forged signature covers the same canonical bytes the verifier
+        # will reconstruct.
+        tampered_dict = snap.model_dump(mode="json", exclude_none=True)
         tampered_dict["records_hash"] = "0x" + "ab" * 32
         # Re-sign the tampered envelope so the signature now matches the
         # bad records_hash. The records_hash check itself must still fire.
