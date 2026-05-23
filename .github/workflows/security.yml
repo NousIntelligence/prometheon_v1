@@ -36,10 +36,11 @@ jobs:
       - name: Resolve dependencies
         run: uv sync --group dev
 
-      - name: Run pip-audit against the lockfile
-        run: |
-          uv pip install pip-audit
-          uv run pip-audit --strict --disable-pip --skip-editable
+      - name: Run pip-audit against the resolved environment
+        # `--disable-pip` is only valid with `--requirement`; against a
+        # resolved environment we use the default audit path. Also switch
+        # to `uv run --with` so we don't need a separate install step.
+        run: uv run --with pip-audit pip-audit --strict --skip-editable
 
   bandit:
     name: bandit (static analysis)
