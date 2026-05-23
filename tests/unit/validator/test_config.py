@@ -105,13 +105,11 @@ class TestLoadValidatorConfig:
             "allow_legacy_sdk_without_mechid = false",
             "allow_legacy_sdk_without_mechid = true",
         )
-        with pytest.raises(ConfigError, match="permitted only on chain.network = 'local'"):
+        with pytest.raises(ConfigError, match=r"permitted only on chain\.network = 'local'"):
             load_validator_config(_write(tmp_path, body))
 
     def test_legacy_sdk_override_accepted_on_local(self, tmp_path: Path) -> None:
-        body = VALID_FINNEY_CONFIG.replace(
-            'network = "finney"', 'network = "local"'
-        ).replace(
+        body = VALID_FINNEY_CONFIG.replace('network = "finney"', 'network = "local"').replace(
             "allow_legacy_sdk_without_mechid = false",
             "allow_legacy_sdk_without_mechid = true",
         )

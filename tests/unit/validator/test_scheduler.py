@@ -49,9 +49,7 @@ class TestShouldRefreshMetagraph:
     def test_default_10_minute_interval(self) -> None:
         ticks = ScheduleTicks(last_metagraph_refresh_at=NOW - timedelta(minutes=9))
         assert not should_refresh_metagraph(ticks, config=_config(), now=NOW)
-        ticks_at_boundary = ScheduleTicks(
-            last_metagraph_refresh_at=NOW - timedelta(minutes=10)
-        )
+        ticks_at_boundary = ScheduleTicks(last_metagraph_refresh_at=NOW - timedelta(minutes=10))
         assert should_refresh_metagraph(ticks_at_boundary, config=_config(), now=NOW)
 
 
@@ -59,9 +57,7 @@ class TestShouldAttemptSubmission:
     def test_default_15_minute_interval(self) -> None:
         ticks = ScheduleTicks(last_submission_attempt_at=NOW - timedelta(minutes=14))
         assert not should_attempt_submission(ticks, config=_config(), now=NOW)
-        ticks_at_boundary = ScheduleTicks(
-            last_submission_attempt_at=NOW - timedelta(minutes=15)
-        )
+        ticks_at_boundary = ScheduleTicks(last_submission_attempt_at=NOW - timedelta(minutes=15))
         assert should_attempt_submission(ticks_at_boundary, config=_config(), now=NOW)
 
     def test_first_call_always_runs(self) -> None:

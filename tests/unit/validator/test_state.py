@@ -100,17 +100,13 @@ class TestAppendEvent:
     def test_multiple_appends_one_per_line(self, tmp_path: Path) -> None:
         append_event({"event_type": "a"}, directory=tmp_path)
         append_event({"event_type": "b"}, directory=tmp_path)
-        lines = (
-            (tmp_path / EVENTS_FILE_NAME).read_text(encoding="utf-8").strip().split("\n")
-        )
+        lines = (tmp_path / EVENTS_FILE_NAME).read_text(encoding="utf-8").strip().split("\n")
         assert len(lines) == 2
         assert json.loads(lines[0])["event_type"] == "a"
         assert json.loads(lines[1])["event_type"] == "b"
 
     def test_supplied_timestamp_is_preserved(self, tmp_path: Path) -> None:
-        append_event(
-            {"event_type": "x", "timestamp": "2026-05-20T00:00:00Z"}, directory=tmp_path
-        )
+        append_event({"event_type": "x", "timestamp": "2026-05-20T00:00:00Z"}, directory=tmp_path)
         contents = (tmp_path / EVENTS_FILE_NAME).read_text(encoding="utf-8").strip()
         decoded = json.loads(contents)
         assert decoded["timestamp"] == "2026-05-20T00:00:00Z"
