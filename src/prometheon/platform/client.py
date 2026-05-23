@@ -261,33 +261,79 @@ class BitFanClient:
         return self._decode_or_raise(response)
 
     def _decode_or_raise(self, response: httpx.Response) -> dict[str, Any]:
-        """Parse a 2xx JSON body, or raise the matching :class:`PlatformError`."""
+        """Parse a JSON body, unwrap the platform envelope, or raise.
+
+        The BitFan platform wraps every response in a standard envelope:
+
+        - Success: ``{"success": true, "data": {...}, "meta": {}}``
+        - Error:   ``{"success": false, "error": {"code": "...", "message": "..."}}``
+
+        Both shapes are unwrapped here so callers receive the inner
+        payload directly and :func:`platform_error_from_response_body`
+        receives the flat ``{code, message}`` it expects. Non-enveloped
+        bodies pass through unchanged, which keeps the helper resilient
+        against future endpoints that might bypass the interceptor.
+        """
+        from prometheon.platform.errors import PlatformError
+
         if response.is_success:
             try:
                 data = response.json()
             except ValueError as exc:
-                from prometheon.platform.errors import PlatformError
-
                 raise PlatformError(
                     f"platform returned 2xx with non-JSON body: {exc}",
                     status_code=response.status_code,
                 ) from exc
             if not isinstance(data, dict):
-                from prometheon.platform.errors import PlatformError
-
                 raise PlatformError(
                     f"platform returned 2xx with non-object JSON body: {type(data).__name__}",
                     status_code=response.status_code,
                 )
-            return data
+            unwrapped = _unwrap_success_envelope(data)
+            if not isinstance(unwrapped, dict):
+                raise PlatformError(
+                    "platform returned 2xx envelope whose 'data' field is not an object: "
+                    f"{type(unwrapped).__name__}",
+                    status_code=response.status_code,
+                )
+            return unwrapped
 
-        # On error, attempt to decode the structured error envelope.
+        # Error path: try to JSON-decode, then unwrap the error envelope so the
+        # mapper sees the flat ``{code, message}`` it knows how to parse.
         body: Any = None
         try:
             body = response.json()
         except ValueError:
             body = response.text
+        if isinstance(body, dict):
+            body = _unwrap_error_envelope(body)
         raise platform_error_from_response_body(body, status_code=response.status_code)
+
+
+def _unwrap_success_envelope(body: dict[str, Any]) -> Any:
+    """Return ``body['data']`` if ``body`` is the platform's success envelope.
+
+    A success envelope is ``{"success": True, "data": {...}, "meta": {...}}``.
+    Bodies that do not match the envelope shape are returned unchanged so
+    plain-shaped responses (if any future endpoint bypasses the
+    interceptor) still flow through unmodified.
+    """
+    if body.get("success") is True and "data" in body:
+        return body["data"]
+    return body
+
+
+def _unwrap_error_envelope(body: dict[str, Any]) -> dict[str, Any]:
+    """Return ``body['error']`` if ``body`` is the platform's error envelope.
+
+    An error envelope is ``{"success": False, "error": {"code": "...", "message": "..."}}``.
+    Bodies that do not match the envelope shape are returned unchanged so
+    :func:`platform_error_from_response_body` can still surface them.
+    """
+    error = body.get("error")
+    if body.get("success") is False and isinstance(error, dict):
+        return error
+    return body
 
 
 __all__ = ["BitFanClient"]
