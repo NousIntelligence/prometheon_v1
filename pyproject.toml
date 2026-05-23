@@ -55,6 +55,7 @@ dependencies = [
     "click>=8.1,<9",
     "structlog>=24,<26",
     "tomli>=2.0,<3 ; python_version < '3.11'",
+    "typing-extensions>=4.7,<5",
 ]
 
 [project.urls]
