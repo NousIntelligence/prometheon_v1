@@ -155,15 +155,15 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 minversion = "8.0"
 testpaths = ["tests"]
-# importlib mode plays well with the src/ layout and avoids requiring __init__.py
-# files in every test subdirectory. It also keeps duplicate basenames safe across
-# tests/unit/<module>/ and tests/integration/<module>/.
-importmode = "importlib"
+# --import-mode=importlib plays well with the src/ layout and avoids requiring
+# __init__.py files in every test subdirectory. It also keeps duplicate
+# basenames safe across tests/unit/<module>/ and tests/integration/<module>/.
 addopts = [
     "-ra",
     "--strict-markers",
     "--strict-config",
     "--showlocals",
+    "--import-mode=importlib",
 ]
 markers = [
     "unit: fast, isolated unit tests",
