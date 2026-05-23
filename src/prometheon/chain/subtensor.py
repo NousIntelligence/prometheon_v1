@@ -174,8 +174,15 @@ def submit_set_weights(
 
     Passes ``mechid`` only when the SDK exposes the parameter; that
     detection runs once at startup via :func:`detect_capabilities` and
-    is communicated to this function by the caller. Returns the
-    extrinsic hash if the SDK provides one, else ``None``.
+    is communicated to this function by the caller.
+
+    Returns a best-effort receipt string the runner persists in its
+    state file and event log: the on-chain extrinsic hash when the SDK
+    surfaces one, otherwise the SDK's human-readable status message,
+    otherwise ``None``. **Raises :class:`SubtensorError` if the SDK
+    reports the submission failed** — older code silently swallowed
+    failures because the SDK's response object is dataclass-shaped
+    rather than a plain tuple.
     """
     kwargs: dict[str, Any] = {
         "wallet": wallet,
@@ -193,12 +200,53 @@ def submit_set_weights(
     except Exception as exc:
         raise SubtensorError(f"set_weights failed: {exc}") from exc
 
-    # SDK return shapes vary. Surface anything that looks like an
-    # extrinsic hash; otherwise return None.
+    return _parse_set_weights_result(result)
+
+
+def _parse_set_weights_result(result: Any) -> str | None:
+    """Normalise the heterogeneous shapes ``set_weights`` returns.
+
+    Bittensor 10.x returns ``ExtrinsicResponse`` — a dataclass with
+    ``.success`` / ``.message`` / ``.extrinsic_receipt`` attributes that
+    *behaves* like a tuple at the indexing level but is not a real tuple
+    subclass. Older SDKs returned ``(bool, str)``, ``bool``, or a raw
+    hash string. This helper handles each, raising on observed failure
+    and returning the best available receipt on success.
+    """
+    # Bittensor 10.x ExtrinsicResponse: duck-typed via attributes so we
+    # do not have to import the dataclass directly.
+    if hasattr(result, "success") and hasattr(result, "message"):
+        if not result.success:
+            raise SubtensorError(f"set_weights returned failure: {result.message!r}")
+        # Prefer the on-chain extrinsic hash when the receipt exposes one.
+        receipt = getattr(result, "extrinsic_receipt", None)
+        if receipt is not None:
+            extrinsic_hash = getattr(receipt, "extrinsic_hash", None)
+            if extrinsic_hash:
+                return str(extrinsic_hash)
+        # Fall back to the status message so operators see what the
+        # chain reported (e.g. "Successfully set weights and Finalized.").
+        return str(result.message) if result.message else None
+
+    # Legacy SDK shape: bare ``(success, message)`` tuple.
     if isinstance(result, tuple) and len(result) >= 2:
+        success = bool(result[0])
+        if not success:
+            raise SubtensorError(f"set_weights returned failure: {result[1]!r}")
         return str(result[1]) if result[1] else None
+
+    # Legacy SDK shape: bare bool.
+    if isinstance(result, bool):
+        if not result:
+            raise SubtensorError("set_weights returned False with no message")
+        return None
+
+    # Legacy SDK shape: raw hash string.
     if isinstance(result, str):
         return result
+
+    # Unknown shape but no exception raised — treat as success without a
+    # receipt rather than silently dropping a potential failure signal.
     return None
 
 
