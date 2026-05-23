@@ -2,7 +2,7 @@
 
 A Bittensor subnet that converts BitFan platform-qualified user activity into deterministic on-chain weights.
 
-> **Phase scope.** This repository implements **Phase 1** only. Future phases will ship in their own repositories (`prometheon_v2`, `prometheon_v3`, `prometheon_v4`) when those phase boundaries become active.
+> **Phase scope.** This repository implements **Phase 1** only — the growth-incentive mechanism that converts BitFan Fan Group activity into deterministic on-chain weights. Future phases will ship in their own repositories (`prometheon_v2`, `prometheon_v3`, `prometheon_v4`) when those phase boundaries become active.
 
 ---
 
