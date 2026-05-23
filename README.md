@@ -68,58 +68,108 @@ Requirements:
 - A Bittensor wallet (`btcli`-managed)
 - Docker (only required for the containerised deployment path)
 
-Using [uv](https://github.com/astral-sh/uv):
+### Recommended: `uv`
+
+[`uv`](https://github.com/astral-sh/uv) handles the virtual environment, Python interpreter, and dependency resolution in one step. Install `uv` if you do not have it:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Then, from the repository root:
 
 ```bash
 uv sync
 ```
 
-Using pip:
+All subsequent commands in this guide assume `uv run` in front of `prometheon` (for example, `uv run prometheon validator run …`). This keeps the project's pinned dependencies isolated from the system Python.
+
+### Alternative: `pip` in a virtual environment
+
+Modern Debian/Ubuntu (PEP 668) blocks `pip install` against the system Python. Use a venv:
 
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -e .
 ```
 
+After activating the venv, `prometheon` is available directly on the path (no `uv run` prefix).
+
+> **Do not** run `pip install -e . --break-system-packages` against the system Python; it can break apt-managed packages on the host.
+
 ---
 
-## Quick Start
+## Prerequisites
+
+Before either the miner or validator quick-start works, you need:
+
+- [ ] A **BitFan account** on the appropriate environment (testnet uses the staging instance documented in [`configs/testnet.example.toml`](./configs/testnet.example.toml)).
+- [ ] A **BitFan API token** for that account, with the right scope (`miner` for the miner flow, `validator` for the validator flow).
+- [ ] A **Bittensor wallet** created via `btcli` (coldkey + at least one hotkey).
+- [ ] The hotkey **registered on the target netuid** (`btcli subnet register`).
+- [ ] For validators only: a **chain-issued validator permit** on that netuid (the chain grants this after enough stake; check via `btcli wallet overview`).
+
+The platform-side values you will need (URL, `platform_instance_id`, signing key, burn hotkey) are all pre-filled for testnet 481 in [`configs/testnet.example.toml`](./configs/testnet.example.toml) — you do not need to obtain them separately.
+
+---
+
+## Quick Start (testnet, subnet 481)
+
+The flow below targets the live testnet deployment (`netuid = 481` on `chain_network = test`). For mainnet, see [`docs/deployment/mainnet.md`](./docs/deployment/mainnet.md).
 
 ### Miner
 
+Phase 1 miners **do not run a daemon**. The reward path is real BitFan Fan Group growth, scored off-chain by the platform; the subnet-side miner command exists to (a) verify the hotkey against the platform once and (b) print status diagnostics.
+
 ```bash
-prometheon verify-miner \
+# 1. Make your API token available via env var
+export PROMETHEON_MINER_API_TOKEN="<your BitFan staging miner token>"
+
+# 2. Verify your miner hotkey with the platform (one-time per hotkey)
+uv run prometheon verify-miner \
   --username <bitfan_username> \
   --email <bitfan_email> \
-  --api-token <bitfan_api_token> \
-  --wallet.name <wallet> \
-  --wallet.hotkey <hotkey> \
-  --netuid <netuid> \
-  --network <local|test|finney>
+  --wallet-name <wallet> \
+  --wallet-hotkey <hotkey> \
+  --platform-base-url https://bitfan-production.up.railway.app \
+  --platform-instance-id bitfan-staging \
+  --chain-network test \
+  --netuid 481
 ```
 
-After verification, create and grow your BitFan Fan Group. The miner is rewarded through scored activity from the users you bring in, not through running a daemon. See [`docs/miner.md`](./docs/miner.md).
+After successful verification, create and grow your BitFan Fan Group on the platform. See [`docs/miner.md`](./docs/miner.md).
 
 ### Validator
 
+The validator is config-driven: every chain, wallet, platform, and burn setting lives in a TOML file, and `prometheon validator run` only takes `--config`. Pre-pinned values for testnet 481 are already in [`configs/testnet.example.toml`](./configs/testnet.example.toml); you only need to override `[wallet]` with your own wallet name and hotkey.
+
 ```bash
-prometheon verify-validator \
+# 1. Copy the pre-pinned testnet config to a local file
+cp configs/testnet.example.toml ~/prometheon-testnet.toml
+# Then edit the [wallet] section in ~/prometheon-testnet.toml to your wallet.
+
+# 2. Make your API token available via env var
+export PROMETHEON_VALIDATOR_API_TOKEN="<your BitFan staging validator token>"
+
+# 3. Verify your validator hotkey with the platform (one-time per hotkey)
+uv run prometheon verify-validator \
   --username <bitfan_username> \
   --email <bitfan_email> \
-  --api-token <bitfan_api_token> \
-  --wallet.name <wallet> \
-  --wallet.hotkey <hotkey> \
-  --netuid <netuid> \
-  --network <local|test|finney>
+  --wallet-name <wallet> \
+  --wallet-hotkey <hotkey> \
+  --platform-base-url https://bitfan-production.up.railway.app \
+  --platform-instance-id bitfan-staging \
+  --chain-network test \
+  --netuid 481
 
-prometheon validator run \
-  --config configs/finney.example.toml \
-  --wallet.name <wallet> \
-  --wallet.hotkey <hotkey> \
-  --netuid <netuid> \
-  --network <local|test|finney>
+# 4. Run the validator
+uv run prometheon validator run --config ~/prometheon-testnet.toml
 ```
 
-See [`docs/validator.md`](./docs/validator.md) and [`docs/deployment/`](./docs/deployment/).
+`prometheon validator run` accepts `--once` (single cycle then exit, useful for sanity checks) and `--cycles N`. Without those flags, it loops on the schedule configured in `[scheduler]`.
+
+See [`docs/validator.md`](./docs/validator.md) and [`docs/deployment/testnet.md`](./docs/deployment/testnet.md) for the operational details.
 
 ---
 
@@ -141,11 +191,11 @@ See [`docs/validator.md`](./docs/validator.md) and [`docs/deployment/`](./docs/d
 
 ## Project Status
 
-Phase 1 — under active development. Mechanism is fixed; deployment values are placeholders pending the testnet bring-up.
+Phase 1 is live on Bittensor testnet as **netuid 481**. The mechanism is fixed and the testnet baseline values are pinned in [`configs/testnet.example.toml`](./configs/testnet.example.toml).
 
 | Phase | Repository | Status |
 |---|---|---|
-| Phase 1 — growth incentive | `NousIntelligence/prometheon_v1` | **In development** |
+| Phase 1 — growth incentive | `NousIntelligence/prometheon_v1` | **Testnet (netuid 481)** |
 | Phase 2 | future | Reserved |
 | Phase 3 | future | Reserved |
 | Phase 4 | future | Reserved |
@@ -159,7 +209,3 @@ Phase 1 — under active development. Mechanism is fixed; deployment values are 
 ## Reporting Vulnerabilities
 
 See [`SECURITY.md`](./SECURITY.md).
-
-## Contributing
-
-See [`CONTRIBUTING.md`](./CONTRIBUTING.md).
