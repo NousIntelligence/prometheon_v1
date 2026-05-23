@@ -1,0 +1,144 @@
+# ---------------------------------------------------------------------------
+# Internal-only specifications, references, and tooling.
+# These paths must never appear in the public repository.
+# ---------------------------------------------------------------------------
+docs/specs/
+repo_reference/
+.local/
+.private/
+internal/
+_internal/
+
+# Defense-in-depth: any stray internal specification file regardless of path.
+Prometheon_Phase1_*.md
+prometheon_phase1_*.md
+
+# Additional internal documentation paths reserved by the specification.
+docs/internal/
+docs/ops/
+docs/ops-private/
+docs/operator-private/
+docs/recovery-private/
+docs/audit-private/
+docs/audit-console-private/
+docs/manual-recovery-review/
+docs/admin-api/
+docs/operator-runbooks-private/
+docs/investor/
+docs/treasury/
+docs/adr/
+
+# ---------------------------------------------------------------------------
+# Environment files and local overrides.
+# ---------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+
+# ---------------------------------------------------------------------------
+# Secrets, keys, and other credential material.
+# ---------------------------------------------------------------------------
+secrets/
+private/
+.internal/
+*.pem
+*.key
+*.p12
+*.crt
+*.csr
+*.seed
+*.mnemonic
+*.wallet
+*.token
+
+# ---------------------------------------------------------------------------
+# Bittensor wallets and chain-key material.
+# ---------------------------------------------------------------------------
+wallets/
+.bittensor/
+bt_wallets/
+
+# ---------------------------------------------------------------------------
+# Validator and miner runtime state.
+# ---------------------------------------------------------------------------
+.validator-state/
+.snapshot-cache/
+logs/
+runs/
+cache/
+*.log
+
+# ---------------------------------------------------------------------------
+# Local configuration overrides.
+# Example configs (configs/*.example.toml) are committed; local overrides are not.
+# ---------------------------------------------------------------------------
+configs/*.local.toml
+configs/*secret*.toml
+configs/*private*.toml
+
+# ---------------------------------------------------------------------------
+# Python build, packaging, and tool caches.
+# ---------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Distribution / build artefacts
+build/
+dist/
+sdist/
+wheels/
+*.egg
+*.egg-info/
+pip-log.txt
+pip-delete-this-directory.txt
+MANIFEST
+
+# uv / pip
+.uv/
+pip-wheel-metadata/
+
+# ---------------------------------------------------------------------------
+# Notebook artefacts.
+# ---------------------------------------------------------------------------
+.ipynb_checkpoints/
+
+# ---------------------------------------------------------------------------
+# Editor and operating-system metadata.
+# ---------------------------------------------------------------------------
+.idea/
+.vscode/
+*.swp
+*.swo
+*.swn
+*~
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ---------------------------------------------------------------------------
+# Docker build context noise.
+# ---------------------------------------------------------------------------
+.docker/

@@ -1,0 +1,58 @@
+# Prometheon Phase 1 — example validator configuration (localnet).
+#
+# Copy this file to a non-tracked location (for example, configs/localnet.local.toml)
+# and fill in the placeholder values before running the validator.
+#
+# Local development overrides are accepted here only because chain.network = "local".
+# They are rejected outside local development.
+
+[chain]
+network = "local"
+netuid = 1
+version_key = 0
+fail_on_weights_version_mismatch = false
+allow_legacy_sdk_without_mechid = false
+
+[wallet]
+name = "validator"
+hotkey = "default"
+
+[platform]
+base_url = "http://127.0.0.1:8080"
+platform_instance_id = "bitfan-local"
+api_token_env = "PROMETHEON_VALIDATOR_API_TOKEN"
+request_timeout_seconds = 30
+
+[platform.snapshot_keys."platform-local-2026"]
+public_key = "0x0000000000000000000000000000000000000000000000000000000000000000"
+not_before = "2026-01-01T00:00:00Z"
+not_after  = "2027-01-01T00:00:00Z"
+status     = "active"
+
+[validator]
+mode = "aggregate"
+activity_date = "latest"
+submit_weights = true
+dry_run = false
+
+[phase1]
+mechanism = "phase1_growth"
+mechid = 0
+daily_score_cap = 20
+active_member_score_threshold = 50
+min_active_members_for_reward = 3
+top_k = 10
+weight_units = 1_000_000_000
+
+[burn]
+enabled = true
+burn_hotkey = "5DPLACEHOLDERburnHotkeyForLocalnetDevelopmentOnlyXXXXXXXXX"
+manual_burn_rate_ppm = 0
+
+[scheduler]
+snapshot_refresh_interval_minutes = 5
+metagraph_refresh_interval_minutes = 2
+weight_submission_check_interval_minutes = 3
+
+[logging]
+level = "DEBUG"
