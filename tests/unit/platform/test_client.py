@@ -297,7 +297,9 @@ class TestSnapshotFlows:
         assert isinstance(snapshot, AggregateSnapshot)
         assert snapshot.mode == "aggregate"
         # URL must include "latest" (the default).
-        assert captured["url"] == (f"{BASE_URL}/api/v1/prometheon/phase1/snapshots/latest/aggregate")
+        assert captured["url"] == (
+            f"{BASE_URL}/api/v1/prometheon/phase1/snapshots/latest/aggregate"
+        )
 
     def test_signed_get_includes_all_required_headers(self, alice_keypair: Keypair) -> None:
         captured: dict[str, Any] = {}
