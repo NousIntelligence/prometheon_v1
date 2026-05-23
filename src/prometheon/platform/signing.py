@@ -25,6 +25,7 @@ Reference: consolidated specification §9 (envelope), §11 (snapshot model),
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping
 from datetime import datetime, timezone
 from typing import Any, ClassVar, Final, Literal
@@ -52,6 +53,13 @@ _ACTIVE_MEMBER_SCORE_THRESHOLD: Final[int] = 50
 
 _ISO8601_UTC_Z_RE: Final[str] = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$"
 _HEX32_RE: Final[str] = r"^0x[0-9a-f]{64}$"
+
+# Emit a warning log when the active platform key is within this many days
+# of expiry. Picked to give operators a full sprint of lead time before they
+# must coordinate a rotation with the platform team.
+_KEY_EXPIRY_WARNING_DAYS: Final[int] = 14
+
+_logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -202,6 +210,21 @@ def _select_trusted_key(
             f"window [{key.not_before!r}, {key.not_after!r}] of key "
             f"{platform_key_id!r}"
         )
+
+    # Warn (don't fail) when the key is within the expiry warning window.
+    # Operators routinely miss platform-side key-rotation announcements; logging
+    # here gives them at least one in-process signal before the validator
+    # starts failing closed.
+    remaining = (not_after_dt - generated_at_dt).days
+    if 0 <= remaining <= _KEY_EXPIRY_WARNING_DAYS:
+        _logger.warning(
+            "platform_key_id %r expires in %d day(s) (not_after=%s); "
+            "request rotation from the platform team",
+            platform_key_id,
+            remaining,
+            key.not_after,
+        )
+
     return key
 
 
