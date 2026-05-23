@@ -254,6 +254,13 @@ class BitFanClient:
             "X-Prometheon-Nonce": nonce,
             "X-Prometheon-Timestamp": timestamp,
             "X-Prometheon-Request-Signature": signature_hex,
+            # Snapshot endpoints are GETs with no body; the platform's
+            # EnvMatchGuard reads the env binding from these headers
+            # because there is no body field to carry them. The same
+            # values are also part of the signed ApiRequestPayload so
+            # signature coverage is unchanged.
+            "X-Prometheon-Chain-Network": self._chain_network.value,
+            "X-Prometheon-Platform-Instance-Id": self._platform_instance_id,
             "Client-Name": _CLIENT_NAME,
         }
         url = f"{self._base_url}{path}"
