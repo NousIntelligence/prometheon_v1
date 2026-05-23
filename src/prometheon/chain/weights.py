@@ -223,20 +223,27 @@ def assert_phase1_compatible(
     """
     if hyperparams.commit_reveal_enabled:
         raise CommitRevealEnabledError(
-            "subnet has commit-reveal enabled; Phase 1 ships plain set_weights only"
+            "subnet has commit-reveal enabled, but Phase 1 ships plain set_weights only. "
+            "Action: coordinate with the subnet owner to disable commit-reveal on this "
+            "netuid, or wait for a future Prometheon release that adds commit-reveal support."
         )
 
     if not capabilities.supports_mechid and not allow_legacy_sdk_without_mechid:
         raise MechidMissingError(
-            f"installed Bittensor SDK {capabilities.sdk_version!r} does not "
-            "expose mechid; allow_legacy_sdk_without_mechid=True is required "
-            "to proceed (local development only)"
+            f"installed Bittensor SDK {capabilities.sdk_version!r} does not expose the "
+            "mechid argument on Subtensor.set_weights. "
+            "Action: upgrade bittensor to a version that exposes mechid (10.x+), or "
+            "set chain.allow_legacy_sdk_without_mechid = true in your config "
+            "(local development only — rejected on test/finney)."
         )
 
     if hyperparams.weights_version != configured_version_key and fail_on_weights_version_mismatch:
         raise WeightsVersionMismatchError(
-            f"chain weights_version={hyperparams.weights_version} does not "
-            f"match configured version_key={configured_version_key}"
+            f"chain weights_version={hyperparams.weights_version} does not match the "
+            f"configured chain.version_key={configured_version_key}. "
+            "Action: confirm the current version_key with the subnet owner and update "
+            "your config; only override chain.fail_on_weights_version_mismatch = false "
+            "after the mismatch is resolved upstream."
         )
 
 
