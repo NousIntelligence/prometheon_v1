@@ -78,10 +78,11 @@ pip-delete-this-directory.txt
 MANIFEST
 
 # Tests and docs do not belong in the runtime image. They are exercised in CI
-# and shipped via GitHub Pages, not via container builds.
+# and shipped via GitHub Pages, not via container builds. README.md and LICENSE
+# are required by the package metadata in pyproject.toml so they stay in the
+# build context.
 tests/
 docs/
-README.md
 CONTRIBUTING.md
 SECURITY.md
 Makefile
