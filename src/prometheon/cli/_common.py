@@ -27,10 +27,10 @@ from prometheon.security.hashes import api_token_hash
 from prometheon.version import __version__
 
 # Where operators obtain a one-time bootstrap token for the first
-# `verify-miner` / `verify-validator` call. The web app issues the
-# token under the user's existing BitFan session and scopes it to
+# `verify-miner` / `verify-validator` call. The BitFan portal issues
+# the token under the user's existing BitFan session and scopes it to
 # `identity:verify:<role>`; `/identity/verify` revokes it on success.
-PARTNER_PORTAL_URL = "https://bitfanweb-production-658c.up.railway.app/me/partner/prometheon"
+BITFAN_PORTAL_URL = "https://bitfanweb-production-658c.up.railway.app/me/prometheon"
 
 
 def load_hotkey_or_exit(*, name: str, hotkey_name: str) -> Any:
@@ -65,7 +65,7 @@ def read_api_token_or_exit(
 
     When ``bootstrap_for_role`` is set to ``"miner"`` or ``"validator"``,
     a missing token raises with the bootstrap-token onboarding text
-    (Partner Portal URL + paste-and-export steps) instead of the generic
+    (BitFan portal URL + paste-and-export steps) instead of the generic
     "token missing" message. Use this for the first-time verify flows.
     """
     if explicit:
@@ -91,7 +91,7 @@ def _bootstrap_token_help(env_var: str | None, role: str) -> str:
         f"no {role} API token in env ({env_display} unset)\n"
         "\n"
         "To get started:\n"
-        f"  1. Open {PARTNER_PORTAL_URL}\n"
+        f"  1. Open {BITFAN_PORTAL_URL}\n"
         f'  2. Click "Get bootstrap token" with role {role!r}.\n'
         "  3. Copy the token, then re-run with:\n"
         f"       export {env_display}=<paste>\n"

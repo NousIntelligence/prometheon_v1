@@ -105,14 +105,14 @@ After activating the venv, `prometheon` is available directly on the path (no `u
 Before either the miner or validator quick-start works, you need:
 
 - [ ] A **BitFan account** on the appropriate environment (testnet uses the staging instance documented in [`configs/testnet.example.toml`](./configs/testnet.example.toml)).
-- [ ] A **bootstrap token** for the **first verify** call only — issued through the BitFan Partner Portal at https://bitfanweb-production-658c.up.railway.app/me/partner/prometheon. Click *Get bootstrap token* with your role (miner or validator). The token is one-time, scoped to `identity:verify`, expires after one hour, and is auto-revoked the moment `verify-miner` / `verify-validator` succeeds.
+- [ ] A **bootstrap token** for the **first verify** call only — issued through the BitFan portal at https://bitfanweb-production-658c.up.railway.app/me/prometheon. Click *Get bootstrap token* with your role (miner or validator). The token is one-time, scoped to `identity:verify`, expires after one hour, and is auto-revoked the moment `verify-miner` / `verify-validator` succeeds.
 - [ ] A **Bittensor wallet** created via `btcli` (coldkey + at least one hotkey).
 - [ ] The hotkey **registered on the target netuid** (`btcli subnet register`).
 - [ ] For validators only: a **chain-issued validator permit** on that netuid (the chain grants this after enough stake; check via `btcli wallet overview`).
 
 The platform-side values you will need (URL, `platform_instance_id`, signing key, burn hotkey) are all pre-filled for testnet 481 in [`configs/testnet.example.toml`](./configs/testnet.example.toml) — you do not need to obtain them separately.
 
-After the first `verify-*` succeeds, the bootstrap token is gone and your account holds the verified-role flag; subsequent operational tokens (for `snapshot:read`, etc.) are issued through the same Partner Portal under your now-verified role.
+After the first `verify-*` succeeds, the bootstrap token is gone and your account holds the verified-role flag; subsequent operational tokens (for `snapshot:read`, etc.) are issued through the same BitFan portal under your now-verified role.
 
 ---
 
@@ -126,8 +126,8 @@ Phase 1 miners **do not run a daemon**. The reward path is real BitFan Fan Group
 
 ```bash
 # 1. Make your bootstrap token available via env var
-#    (obtained from the Partner Portal — see Prerequisites above)
-export PROMETHEON_MINER_API_TOKEN="<bootstrap token from Partner Portal>"
+#    (obtained from the BitFan portal — see Prerequisites above)
+export PROMETHEON_MINER_API_TOKEN="<bootstrap token from BitFan portal>"
 
 # 2. Verify your miner hotkey with the platform (one-time per hotkey)
 uv run prometheon verify-miner \
@@ -153,8 +153,8 @@ cp configs/testnet.example.toml ~/prometheon-testnet.toml
 # Then edit the [wallet] section in ~/prometheon-testnet.toml to your wallet.
 
 # 2. Make your bootstrap token available via env var
-#    (obtained from the Partner Portal — see Prerequisites above)
-export PROMETHEON_VALIDATOR_API_TOKEN="<bootstrap token from Partner Portal>"
+#    (obtained from the BitFan portal — see Prerequisites above)
+export PROMETHEON_VALIDATOR_API_TOKEN="<bootstrap token from BitFan portal>"
 
 # 3. Verify your validator hotkey with the platform (one-time per hotkey)
 uv run prometheon verify-validator \
