@@ -147,7 +147,7 @@ disallow_any_unimported = true
 files = ["src/prometheon"]
 
 [[tool.mypy.overrides]]
-module = ["bittensor.*", "bittensor_wallet.*", "substrateinterface.*"]
+module = ["bittensor.*", "bittensor_wallet.*", "substrateinterface.*", "tomli"]
 ignore_missing_imports = true
 
 # ---------------------------------------------------------------------------
