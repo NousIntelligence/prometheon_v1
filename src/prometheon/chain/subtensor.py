@@ -217,7 +217,9 @@ def _parse_set_weights_result(result: Any) -> str | None:
     # do not have to import the dataclass directly.
     if hasattr(result, "success") and hasattr(result, "message"):
         if not result.success:
-            raise SubtensorError(f"set_weights returned failure: {result.message!r}")
+            raise SubtensorError(
+                f"set_weights returned failure: {_summarize_failed_response(result)}"
+            )
         # Prefer the on-chain extrinsic hash when the receipt exposes one.
         receipt = getattr(result, "extrinsic_receipt", None)
         if receipt is not None:
@@ -248,6 +250,39 @@ def _parse_set_weights_result(result: Any) -> str | None:
     # Unknown shape but no exception raised — treat as success without a
     # receipt rather than silently dropping a potential failure signal.
     return None
+
+
+def _summarize_failed_response(result: Any) -> str:
+    """Format every diagnostic field a failed ``ExtrinsicResponse`` carries.
+
+    The platform's ``ExtrinsicResponse`` may leave ``.message`` empty even on
+    failure (the underlying chain rejection sometimes surfaces only via
+    ``.error`` or the receipt's diagnostic payload). Joining every populated
+    attribute we know about gives operators a hard signal to act on — chain
+    rate-limit text, permit errors, fee-too-low, etc. — instead of the bare
+    ``None`` the message alone would print.
+    """
+    parts: list[str] = []
+    message = getattr(result, "message", None)
+    if message:
+        parts.append(f"message={message!r}")
+    error = getattr(result, "error", None)
+    if error is not None:
+        parts.append(f"error={error!r}")
+    function = getattr(result, "extrinsic_function", None)
+    if function:
+        parts.append(f"function={function!r}")
+    fee = getattr(result, "extrinsic_fee", None)
+    if fee is not None:
+        parts.append(f"fee={fee!r}")
+    receipt = getattr(result, "extrinsic_receipt", None)
+    if receipt is not None:
+        receipt_text = str(receipt)
+        # Truncate verbose substrate receipts so the error stays grep-friendly.
+        if len(receipt_text) > 300:
+            receipt_text = receipt_text[:297] + "..."
+        parts.append(f"receipt={receipt_text}")
+    return "; ".join(parts) if parts else "no detail provided by SDK"
 
 
 __all__ = [

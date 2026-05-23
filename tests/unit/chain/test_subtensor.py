@@ -26,13 +26,19 @@ pytestmark = pytest.mark.unit
 
 @dataclass
 class _Receipt:
-    extrinsic_hash: str | None
+    extrinsic_hash: str | None = None
+
+    def __str__(self) -> str:
+        return f"<Receipt extrinsic_hash={self.extrinsic_hash}>"
 
 
 @dataclass
 class _Response:
     success: bool
-    message: str
+    message: str | None = None
+    error: object | None = None
+    extrinsic_function: str | None = None
+    extrinsic_fee: object | None = None
     extrinsic_receipt: _Receipt | None = None
 
 
@@ -60,10 +66,38 @@ class TestExtrinsicResponseShape:
         assert _parse_set_weights_result(response) is None
 
     def test_failure_raises_with_message(self) -> None:
-        # The bug this PR fixes: the old code silently treated this as
-        # a successful submission. Now it must raise.
+        # The bug an earlier PR fixes: the old code silently treated this
+        # as a successful submission. Now it must raise.
         response = _Response(success=False, message="set_weights rate limit exceeded")
         with pytest.raises(SubtensorError, match="set_weights rate limit exceeded"):
+            _parse_set_weights_result(response)
+
+    def test_failure_with_empty_message_includes_other_diagnostic_fields(self) -> None:
+        # The chain sometimes rejects with .message=None but populates
+        # .error / .extrinsic_function / .extrinsic_receipt. Operator must
+        # see something more useful than `set_weights returned failure: None`.
+        receipt = _Receipt(extrinsic_hash="0xdeadbeef")
+        response = _Response(
+            success=False,
+            message=None,
+            error=RuntimeError("weights_set_rate_limit_exceeded"),
+            extrinsic_function="set_weights_extrinsic",
+            extrinsic_fee=42,
+            extrinsic_receipt=receipt,
+        )
+        with pytest.raises(SubtensorError) as exc_info:
+            _parse_set_weights_result(response)
+        msg = str(exc_info.value)
+        assert "weights_set_rate_limit_exceeded" in msg
+        assert "set_weights_extrinsic" in msg
+        assert "0xdeadbeef" in msg
+        assert "fee=42" in msg
+
+    def test_failure_with_no_diagnostic_fields_has_clear_fallback(self) -> None:
+        # Pathological case: SDK returns a failure with literally no fields
+        # set. The error message must still tell the operator what we know.
+        response = _Response(success=False)
+        with pytest.raises(SubtensorError, match="no detail provided by SDK"):
             _parse_set_weights_result(response)
 
 
