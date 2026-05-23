@@ -1,0 +1,92 @@
+# Internal-only paths. These are already excluded by .gitignore; repeating them
+# here as defense in depth so even an accidentally-staged file cannot leak into
+# a container image.
+docs/specs/
+repo_reference/
+.local/
+.private/
+internal/
+_internal/
+Prometheon_Phase1_*.md
+prometheon_phase1_*.md
+
+# Git internals
+.git/
+.gitignore
+.gitattributes
+
+# CI configuration is not needed inside images.
+.github/
+
+# Editor and OS noise
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Local environment, secrets, wallets
+.env
+.env.*
+secrets/
+private/
+wallets/
+.bittensor/
+bt_wallets/
+
+# Validator runtime state must not be baked into images.
+.validator-state/
+.snapshot-cache/
+logs/
+runs/
+cache/
+*.log
+
+# Python build, test, and tool caches.
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.cache/
+
+# Virtual environments (deps are installed inside the image, not copied in)
+.venv/
+venv/
+env/
+ENV/
+
+# Distribution / build artefacts produced outside Docker
+build/
+dist/
+sdist/
+wheels/
+*.egg
+*.egg-info/
+pip-log.txt
+pip-delete-this-directory.txt
+MANIFEST
+
+# Tests and docs do not belong in the runtime image. They are exercised in CI
+# and shipped via GitHub Pages, not via container builds.
+tests/
+docs/
+README.md
+CONTRIBUTING.md
+SECURITY.md
+Makefile
+
+# Local override configurations
+configs/*.local.toml
+configs/*secret*.toml
+configs/*private*.toml
