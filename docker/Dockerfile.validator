@@ -1,0 +1,92 @@
+# syntax=docker/dockerfile:1.7
+#
+# Prometheon Phase 1 validator image.
+#
+# Build context: repository root.
+# Build:
+#   docker build -f docker/Dockerfile.validator -t prometheon-validator:dev .
+#
+# Run:
+#   docker run --rm -it \
+#       -e PROMETHEON_VALIDATOR_API_TOKEN=<token> \
+#       -v ~/.bittensor:/home/prometheon/.bittensor:ro \
+#       -v ./prometheon-finney.toml:/etc/prometheon/config.toml:ro \
+#       -v ./validator-state:/var/lib/prometheon/state \
+#       prometheon-validator:dev
+#
+# The image runs as a non-root user (`prometheon`, UID 10001). Mount your
+# wallet directory and config file read-only; mount the state directory
+# writable so the runner can persist `state.json` and append the NDJSON
+# event log.
+
+# --- Builder stage -----------------------------------------------------------
+FROM python:3.11-slim-bookworm AS builder
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    UV_LINK_MODE=copy \
+    UV_PROJECT_ENVIRONMENT=/opt/prometheon/.venv
+
+# System packages needed to build wheels (no extra binaries beyond what
+# the runtime actually needs).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        build-essential \
+        ca-certificates \
+        curl \
+        git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv into a stable path.
+RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
+
+WORKDIR /opt/prometheon
+
+# Cache layer for dependencies: copy the lockfile + pyproject first.
+COPY pyproject.toml uv.lock README.md ./
+COPY src ./src
+COPY neurons ./neurons
+COPY configs ./configs
+COPY scripts ./scripts
+COPY docs ./docs
+COPY LICENSE SECURITY.md CONTRIBUTING.md ./
+
+# Install runtime dependencies plus the package itself.
+RUN uv sync --frozen --no-dev
+
+
+# --- Runtime stage -----------------------------------------------------------
+FROM python:3.11-slim-bookworm AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH="/opt/prometheon/.venv/bin:${PATH}"
+
+# Minimal runtime packages.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        tini \
+    && rm -rf /var/lib/apt/lists/*
+
+# Non-root user for the validator process.
+RUN groupadd --system --gid 10001 prometheon \
+    && useradd --system --uid 10001 --gid 10001 \
+        --create-home --shell /usr/sbin/nologin prometheon
+
+# Copy the prepared virtual environment and the source from the builder.
+COPY --from=builder --chown=prometheon:prometheon /opt/prometheon /opt/prometheon
+
+# Default mount points; the operator is expected to bind-mount these.
+RUN mkdir -p /etc/prometheon /var/lib/prometheon/state \
+    && chown -R prometheon:prometheon /etc/prometheon /var/lib/prometheon
+
+USER prometheon
+WORKDIR /opt/prometheon
+
+# tini reaps zombies and forwards signals cleanly.
+ENTRYPOINT ["/usr/bin/tini", "--", "prometheon"]
+CMD ["validator", "run", \
+     "--config", "/etc/prometheon/config.toml", \
+     "--state-directory", "/var/lib/prometheon/state"]
