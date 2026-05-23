@@ -37,14 +37,22 @@ jobs:
         run: uv sync --group dev
 
       - name: Run pip-audit against the resolved environment
-        # `--disable-pip` is only valid with `--requirement`; against a
-        # resolved environment we use the default audit path. `--strict`
-        # is dropped because it makes pip-audit fail on the "distribution
-        # marked as editable" warning emitted for the prometheon package
-        # itself; the audit still exits non-zero when a real vulnerability
-        # is found. `uv run --with` provisions an ephemeral environment so
-        # we do not need a separate install step.
-        run: uv run --with pip-audit pip-audit --skip-editable
+        # `--strict` is dropped because it makes pip-audit fail on the
+        # "distribution marked as editable" warning emitted for the
+        # prometheon package itself; the audit still exits non-zero when
+        # a real vulnerability is found. `uv run --with` provisions an
+        # ephemeral environment so we do not need a separate install step.
+        #
+        # PYSEC-2022-42969 (py 1.11.0) is ignored as a documented accepted
+        # risk: `py` is unmaintained and has no fix version, and it enters
+        # the graph only as a transitive dep of `retry` (bittensor's
+        # choice). The vuln is a ReDoS in path-handling utilities we do
+        # not exercise. Track for removal when bittensor drops the `retry`
+        # dependency in a future release.
+        run: |
+          uv run --with pip-audit pip-audit \
+            --skip-editable \
+            --ignore-vuln PYSEC-2022-42969
 
   bandit:
     name: bandit (static analysis)
