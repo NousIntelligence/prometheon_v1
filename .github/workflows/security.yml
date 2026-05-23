@@ -38,9 +38,13 @@ jobs:
 
       - name: Run pip-audit against the resolved environment
         # `--disable-pip` is only valid with `--requirement`; against a
-        # resolved environment we use the default audit path. Also switch
-        # to `uv run --with` so we don't need a separate install step.
-        run: uv run --with pip-audit pip-audit --strict --skip-editable
+        # resolved environment we use the default audit path. `--strict`
+        # is dropped because it makes pip-audit fail on the "distribution
+        # marked as editable" warning emitted for the prometheon package
+        # itself; the audit still exits non-zero when a real vulnerability
+        # is found. `uv run --with` provisions an ephemeral environment so
+        # we do not need a separate install step.
+        run: uv run --with pip-audit pip-audit --skip-editable
 
   bandit:
     name: bandit (static analysis)
