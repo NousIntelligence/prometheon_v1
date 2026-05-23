@@ -80,9 +80,11 @@ def _make_client(
 
 
 def _ok_json(payload: dict[str, Any], status_code: int = 200) -> httpx.Response:
+    """Build a 2xx response wrapped in the platform's success envelope."""
+    envelope = {"success": True, "data": payload, "meta": {}}
     return httpx.Response(
         status_code,
-        content=json.dumps(payload).encode("utf-8"),
+        content=json.dumps(envelope).encode("utf-8"),
         headers={"Content-Type": "application/json"},
     )
 
@@ -90,9 +92,11 @@ def _ok_json(payload: dict[str, Any], status_code: int = 200) -> httpx.Response:
 def _error_json(
     error_code: str, *, status_code: int, detail: str = "test detail"
 ) -> httpx.Response:
+    """Build a non-2xx response wrapped in the platform's error envelope."""
+    envelope = {"success": False, "error": {"code": error_code, "message": detail}}
     return httpx.Response(
         status_code,
-        content=json.dumps({"code": error_code, "message": detail}).encode("utf-8"),
+        content=json.dumps(envelope).encode("utf-8"),
         headers={"Content-Type": "application/json"},
     )
 
@@ -236,6 +240,121 @@ class TestIdentityFlows:
         transport = httpx.MockTransport(handler)
         with _make_client(transport=transport) as client, pytest.raises(NonceExpiredError):
             client.post_verify_envelope(envelope)
+
+
+# ---------------------------------------------------------------------------
+# Response envelope unwrap tests
+# ---------------------------------------------------------------------------
+
+
+class TestResponseEnvelopeUnwrap:
+    """The platform wraps every response in {success, data/error, meta}.
+
+    These tests pin the unwrap so a future regression on the client's
+    decode path fails at the unit-test level instead of at the network
+    boundary (which is how the bug was caught originally).
+    """
+
+    def _post_nonce(self, transport: httpx.MockTransport) -> dict[str, Any]:
+        with _make_client(transport=transport) as client:
+            return client.request_nonce(
+                NonceRequestBody(
+                    role=Role.MINER,
+                    netuid=NETUID,
+                    username="alice",
+                    email="alice@example.com",
+                    hotkey_ss58=SS58_A,
+                    chain_network=ChainNetwork.FINNEY,
+                    platform_instance_id=PLATFORM_INSTANCE_ID,
+                )
+            )
+
+    def test_success_envelope_is_unwrapped_to_data(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            # _ok_json wraps in {success, data, meta} via the helper.
+            return _ok_json({"platform_account_id": "acct_123", "nonce": "n_xyz"})
+
+        response = self._post_nonce(httpx.MockTransport(handler))
+        assert response == {"platform_account_id": "acct_123", "nonce": "n_xyz"}
+
+    def test_non_enveloped_success_body_passes_through(self) -> None:
+        # Hand-build a 2xx response WITHOUT the envelope wrapper (e.g.
+        # a future endpoint bypassing the interceptor). Should still work.
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200,
+                content=json.dumps({"platform_account_id": "acct_plain"}).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+            )
+
+        response = self._post_nonce(httpx.MockTransport(handler))
+        assert response == {"platform_account_id": "acct_plain"}
+
+    def test_error_envelope_is_unwrapped_before_mapping(self) -> None:
+        # Simulates the exact ENVIRONMENT_MISMATCH shape the platform
+        # returned in the end-to-end run that motivated this fix.
+        def handler(request: httpx.Request) -> httpx.Response:
+            envelope = {
+                "success": False,
+                "error": {
+                    "code": "ENVIRONMENT_MISMATCH",
+                    "message": "Missing chain_network / platform_instance_id binding.",
+                },
+            }
+            return httpx.Response(
+                400,
+                content=json.dumps(envelope).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+            )
+
+        from prometheon.platform.errors import PlatformError
+
+        with (
+            pytest.raises(PlatformError) as exc_info,
+            _make_client(transport=httpx.MockTransport(handler)) as client,
+        ):
+            client.request_nonce(
+                NonceRequestBody(
+                    role=Role.MINER,
+                    netuid=NETUID,
+                    username="alice",
+                    email="alice@example.com",
+                    hotkey_ss58=SS58_A,
+                    chain_network=ChainNetwork.FINNEY,
+                    platform_instance_id=PLATFORM_INSTANCE_ID,
+                )
+            )
+        # Inner detail is preserved; the outer envelope wrapping is gone.
+        assert exc_info.value.status_code == 400
+        assert "Missing chain_network" in (exc_info.value.detail or "")
+
+    def test_non_enveloped_error_body_passes_through_to_mapper(self) -> None:
+        # Hand-build an error response that does NOT use the envelope
+        # (e.g. a 502 from a load balancer in front of the platform).
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                502,
+                content=json.dumps({"code": "BAD_GATEWAY", "message": "upstream"}).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+            )
+
+        from prometheon.platform.errors import PlatformError
+
+        with (
+            pytest.raises(PlatformError),
+            _make_client(transport=httpx.MockTransport(handler)) as client,
+        ):
+            client.request_nonce(
+                NonceRequestBody(
+                    role=Role.MINER,
+                    netuid=NETUID,
+                    username="alice",
+                    email="alice@example.com",
+                    hotkey_ss58=SS58_A,
+                    chain_network=ChainNetwork.FINNEY,
+                    platform_instance_id=PLATFORM_INSTANCE_ID,
+                )
+            )
 
 
 # ---------------------------------------------------------------------------
