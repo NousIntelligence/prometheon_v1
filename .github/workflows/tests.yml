@@ -42,7 +42,19 @@ jobs:
         run: uv run pytest -m "unit" -ra
 
       - name: Run contract tests
-        run: uv run pytest -m "contract" -ra
+        # Exit code 5 = pytest collected no tests. There are no contract
+        # tests in Phase 1; this step exists so the contract suite is
+        # exercised the moment a test is added. Treat "no tests collected"
+        # as success until the first contract test lands.
+        run: |
+          set +e
+          uv run pytest -m "contract" -ra
+          rc=$?
+          if [ $rc -eq 5 ]; then
+            echo "no contract tests collected (expected in Phase 1)"
+            exit 0
+          fi
+          exit $rc
 
       - name: Run integration tests
         run: uv run pytest -m "integration" -ra
