@@ -154,7 +154,8 @@ class TestAggregatePath:
 class TestDetailedManifestPath:
     def test_latest_by_default(self) -> None:
         assert (
-            detailed_manifest_path() == "/api/v1/prometheon/phase1/snapshots/latest/detailed/manifest"
+            detailed_manifest_path()
+            == "/api/v1/prometheon/phase1/snapshots/latest/detailed/manifest"
         )
 
     def test_specific_date(self) -> None:
