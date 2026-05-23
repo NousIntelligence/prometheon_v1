@@ -20,7 +20,7 @@ Canonicalization rules follow the consolidated specification: sort by
 key, then by value; RFC 3986 percent-encode keys and values; **uppercase
 hex** for percent-encoded octets; join as ``key=value`` pairs with ``&``.
 
-Reference: consolidated specification §10 (Encoding), §9.5–§9.7 (path/query/body
+Reference: consolidated specification §10 (Encoding), §9.5-§9.7 (path/query/body
 hashing for API requests), §11 (snapshot model where ``records_hash`` and
 ``page_hash`` are computed via :func:`domain_prefixed_hash`).
 """
@@ -147,8 +147,7 @@ def body_hash(body: bytes) -> str:
     """
     if not isinstance(body, (bytes, bytearray)):
         raise TypeError(
-            f"body must be bytes, got {type(body).__name__}; "
-            "encode str explicitly at the call site"
+            f"body must be bytes, got {type(body).__name__}; encode str explicitly at the call site"
         )
     return sha256_hex(bytes(body))
 
@@ -213,8 +212,7 @@ def query_hash(query: Mapping[str, str | list[str] | tuple[str, ...]] | None) ->
         for value in values:
             if not isinstance(value, str):
                 raise CanonicalEncodingError(
-                    f"query parameter value for {key!r} must be str, "
-                    f"got {type(value).__name__}"
+                    f"query parameter value for {key!r} must be str, got {type(value).__name__}"
                 )
             pairs.append((key, value))
 
@@ -237,9 +235,9 @@ def query_hash(query: Mapping[str, str | list[str] | tuple[str, ...]] | None) ->
 
 __all__ = [
     "EMPTY_SHA256_HEX",
-    "sha256_hex",
-    "domain_prefixed_hash",
     "api_token_hash",
     "body_hash",
+    "domain_prefixed_hash",
     "query_hash",
+    "sha256_hex",
 ]

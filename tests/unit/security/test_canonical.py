@@ -16,10 +16,7 @@ from prometheon.security.canonical import (
     ALL_DOMAINS,
     DOMAIN_API_REQUEST,
     DOMAIN_IDENTITY_VERIFY,
-    DOMAIN_RECORD_PAGE,
-    DOMAIN_RECORD_SET,
     DOMAIN_SNAPSHOT,
-    DOMAIN_WEIGHT_PLAN,
     CanonicalEncodingError,
     domain_prefixed_bytes,
     parse_canonical_json,
@@ -38,17 +35,20 @@ class TestSigningDomains:
     """The eight Prometheon signing domains must be exact, complete, and ASCII."""
 
     def test_all_eight_domains_are_declared(self) -> None:
-        assert ALL_DOMAINS == frozenset(
-            {
-                "PROMETHEON_IDENTITY_VERIFY_V1",
-                "PROMETHEON_HOTKEY_ROTATION_V1",
-                "PROMETHEON_HOTKEY_RECOVERY_V1",
-                "PROMETHEON_API_REQUEST_V1",
-                "PROMETHEON_SNAPSHOT_V1",
-                "PROMETHEON_RECORD_SET_V1",
-                "PROMETHEON_RECORD_PAGE_V1",
-                "PROMETHEON_WEIGHT_PLAN_V1",
-            }
+        assert (
+            frozenset(
+                {
+                    "PROMETHEON_IDENTITY_VERIFY_V1",
+                    "PROMETHEON_HOTKEY_ROTATION_V1",
+                    "PROMETHEON_HOTKEY_RECOVERY_V1",
+                    "PROMETHEON_API_REQUEST_V1",
+                    "PROMETHEON_SNAPSHOT_V1",
+                    "PROMETHEON_RECORD_SET_V1",
+                    "PROMETHEON_RECORD_PAGE_V1",
+                    "PROMETHEON_WEIGHT_PLAN_V1",
+                }
+            )
+            == ALL_DOMAINS
         )
 
     @pytest.mark.parametrize("domain", sorted(ALL_DOMAINS))
@@ -100,9 +100,7 @@ class TestToCanonicalBytes:
 
     def test_nested_object_keys_are_sorted_at_every_level(self) -> None:
         nested = {"outer_b": {"inner_b": 1, "inner_a": 2}, "outer_a": 9}
-        assert to_canonical_bytes(nested) == (
-            b'{"outer_a":9,"outer_b":{"inner_a":2,"inner_b":1}}'
-        )
+        assert to_canonical_bytes(nested) == (b'{"outer_a":9,"outer_b":{"inner_a":2,"inner_b":1}}')
 
 
 # ---------------------------------------------------------------------------
@@ -150,10 +148,7 @@ class TestDomainPrefixedBytes:
     def test_envelope_layout_matches_specification(self) -> None:
         payload = {"domain": DOMAIN_IDENTITY_VERIFY, "role": "miner"}
         envelope = domain_prefixed_bytes(DOMAIN_IDENTITY_VERIFY, payload)
-        assert envelope == (
-            b"PROMETHEON_IDENTITY_VERIFY_V1\n"
-            + to_canonical_bytes(payload)
-        )
+        assert envelope == (b"PROMETHEON_IDENTITY_VERIFY_V1\n" + to_canonical_bytes(payload))
 
     def test_separator_is_exactly_one_newline_byte(self) -> None:
         payload = {"x": 1}
@@ -180,9 +175,7 @@ class TestDomainPrefixedBytes:
 
     def test_object_with_float_rejected_inside_envelope(self) -> None:
         with pytest.raises(CanonicalEncodingError):
-            domain_prefixed_bytes(
-                DOMAIN_API_REQUEST, {"domain": DOMAIN_API_REQUEST, "broken": 0.1}
-            )
+            domain_prefixed_bytes(DOMAIN_API_REQUEST, {"domain": DOMAIN_API_REQUEST, "broken": 0.1})
 
 
 # ---------------------------------------------------------------------------
