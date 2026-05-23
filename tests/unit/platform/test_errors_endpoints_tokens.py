@@ -76,34 +76,44 @@ class TestPlatformErrorCatalog:
 
 class TestPlatformErrorFromResponseBody:
     def test_known_code_returns_specific_instance(self) -> None:
-        body = {"error": "NONCE_EXPIRED", "detail": "Nonce TTL elapsed."}
+        body = {"code": "NONCE_EXPIRED", "message": "Nonce TTL elapsed."}
         exc = platform_error_from_response_body(body, status_code=401)
         assert isinstance(exc, NonceExpiredError)
         assert exc.status_code == 401
         assert exc.detail == "Nonce TTL elapsed."
 
     def test_unknown_code_returns_generic_platform_error(self) -> None:
-        body = {"error": "NEW_FUTURE_CODE", "detail": "Reserved."}
+        body = {"code": "NEW_FUTURE_CODE", "message": "Reserved."}
         exc = platform_error_from_response_body(body, status_code=400)
         assert isinstance(exc, PlatformError)
         # Falls through to the base class, not a more specific subclass.
         assert type(exc) is PlatformError
         assert exc.status_code == 400
 
-    def test_4xx_without_envelope_returns_bad_request(self) -> None:
+    def test_4xx_without_envelope_preserves_raw_body_in_detail(self) -> None:
         body = {"something_else": "yes"}
         exc = platform_error_from_response_body(body, status_code=403)
         assert isinstance(exc, PlatformBadRequestError)
         assert exc.status_code == 403
+        # Operator should still see what the platform actually said.
+        assert "something_else" in (exc.detail or "")
 
     def test_5xx_without_envelope_returns_server_error(self) -> None:
         exc = platform_error_from_response_body(None, status_code=503)
         assert isinstance(exc, PlatformServerError)
         assert exc.status_code == 503
 
-    def test_non_dict_body_4xx_returns_bad_request(self) -> None:
+    def test_non_dict_body_4xx_preserves_text(self) -> None:
         exc = platform_error_from_response_body("plain text", status_code=400)
         assert isinstance(exc, PlatformBadRequestError)
+        assert exc.detail == "plain text"
+
+    def test_long_raw_body_is_truncated(self) -> None:
+        # Defensive: a huge raw body should not blow up the error message.
+        body = {"k": "x" * 2000}
+        exc = platform_error_from_response_body(body, status_code=400)
+        assert exc.detail is not None
+        assert len(exc.detail) <= 500
 
 
 # ---------------------------------------------------------------------------

@@ -2,17 +2,19 @@
 
 The BitFan platform returns errors as a small JSON envelope::
 
-    {"error": "<CODE>", "detail": "<human readable message>"}
+    {"code": "<CODE>", "message": "<human readable message>"}
 
 This module defines:
 
 - :class:`PlatformError` and its hierarchy — a Python exception per error
   code the platform may return. Every exception carries a stable ``code``
   string, an optional HTTP ``status_code``, and an optional ``detail``
-  message.
-- :func:`platform_error_from_response` — maps an ``httpx.Response`` whose
-  status is ``>= 400`` to the matching exception (or to a generic
-  :class:`PlatformError` if the code is unknown).
+  message (the platform's ``message`` field).
+- :func:`platform_error_from_response_body` — maps a decoded response
+  body to the matching exception (or to a generic :class:`PlatformError`
+  if the code is unknown). When the body does not match the canonical
+  envelope, the raw body is preserved in ``detail`` so the operator
+  still sees what the platform actually said.
 
 The exception hierarchy follows the error catalog in the consolidated
 specification §16.1. New codes added by future platform releases fall
@@ -233,34 +235,47 @@ def platform_error_from_response_body(
 ) -> PlatformError:
     """Build the matching :class:`PlatformError` from a decoded response body.
 
-    The body is expected to be a dict with ``error`` and optional
-    ``detail`` keys, matching the platform's error envelope. Bodies that
-    do not match the envelope shape are wrapped in a generic
-    :class:`PlatformBadRequestError` (for 4xx) or
-    :class:`PlatformServerError` (for 5xx).
+    The body is expected to be a dict with ``code`` and optional
+    ``message`` keys, matching the platform's error envelope. When the
+    body does not match the envelope shape, the raw body is included in
+    ``detail`` so operators can still see what the platform actually
+    said instead of a generic ``"unexpected NNN"`` message.
     """
     if isinstance(body, dict):
         body_dict = cast(dict[str, Any], body)
-        code = body_dict.get("error")
-        detail = body_dict.get("detail")
+        code = body_dict.get("code")
+        message = body_dict.get("message")
         if isinstance(code, str):
             cls = exception_for_code(code)
             return cls(
                 status_code=status_code,
-                detail=detail if isinstance(detail, str) else None,
+                detail=message if isinstance(message, str) else None,
             )
+        # Dict body but no canonical ``code`` field — surface the raw
+        # body in detail so debugging is not blind.
+        raw = _stringify_body(body_dict)
+        return _generic_for_status(status_code, detail=raw)
 
-    # The response did not match the canonical error envelope. Categorise
-    # by status code so callers can still react meaningfully.
-    if 500 <= status_code < 600:
-        return PlatformServerError(
-            status_code=status_code,
-            detail=f"unexpected {status_code} response from platform",
-        )
-    return PlatformBadRequestError(
-        status_code=status_code,
-        detail=f"unexpected {status_code} response from platform",
+    if isinstance(body, str) and body:
+        return _generic_for_status(status_code, detail=body[:500])
+
+    return _generic_for_status(
+        status_code,
+        detail=f"empty {status_code} response from platform",
     )
+
+
+def _stringify_body(body: dict[str, Any]) -> str:
+    """Compact-stringify an arbitrary response body for inclusion in error detail."""
+    text = repr(body)
+    return text if len(text) <= 500 else text[:497] + "..."
+
+
+def _generic_for_status(status_code: int, *, detail: str) -> PlatformError:
+    """Return the generic 4xx / 5xx bucket exception with the given detail."""
+    if 500 <= status_code < 600:
+        return PlatformServerError(status_code=status_code, detail=detail)
+    return PlatformBadRequestError(status_code=status_code, detail=detail)
 
 
 __all__ = [
