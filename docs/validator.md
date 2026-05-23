@@ -11,8 +11,9 @@ This guide walks through the full validator setup, configuration, and operationa
 | Requirement | Notes |
 |---|---|
 | Bittensor wallet | Coldkey + hotkey pair. Validator permits are chain-governed; you need a permit to set weights. |
-| BitFan platform account | Verified as **validator** (not miner). |
-| Validator API token | Issued by BitFan with `snapshot:read:aggregate` (or `:detailed`) scope. Exported via env var. |
+| BitFan platform account | Sign up at the BitFan platform with a stable username and verified email. |
+| Bootstrap token (first verify only) | Obtained from the [BitFan Partner Portal](https://bitfan.ai/me/partner/prometheon) — click *Get bootstrap token* with role *validator*. The token is one-time, scoped to `identity:verify:validator`, expires after one hour, and is auto-revoked the moment `verify-validator` succeeds. Export it as `PROMETHEON_VALIDATOR_API_TOKEN`. |
+| Operational validator token | Issued by the Partner Portal once verification succeeds; carries the `snapshot:read:aggregate` (or `:detailed`) scope used by `validator run`. Same env var name as the bootstrap token, but you re-export the new token after first verify. |
 | Linux host | The runner is a single Python process; CPU and disk footprint are minimal. |
 
 Install:
@@ -25,8 +26,10 @@ pip install prometheon            # or `uv sync` from the repository
 
 ## Step 1 — Verify Your Validator Account
 
+The first call uses the one-time bootstrap token from the Partner Portal:
+
 ```bash
-export PROMETHEON_VALIDATOR_API_TOKEN="<your_validator_token>"
+export PROMETHEON_VALIDATOR_API_TOKEN="<bootstrap token from Partner Portal>"
 
 prometheon verify-validator \
     --username             <bitfan_username> \
@@ -39,7 +42,7 @@ prometheon verify-validator \
     --netuid               <netuid>
 ```
 
-On success the platform sets `validator_verified = true` for your account and binds your hotkey. The token's scope determines whether you can subsequently call the aggregate-mode or detailed-mode snapshot endpoints.
+On success the platform sets `validator_verified = true` for your account, binds your hotkey, and revokes the bootstrap token — all in the same transaction. After verify completes, return to the Partner Portal to issue your operational validator token (with `snapshot:read:aggregate` or `:detailed` scope) and re-export it under the same env var for the `validator run` step.
 
 ---
 
