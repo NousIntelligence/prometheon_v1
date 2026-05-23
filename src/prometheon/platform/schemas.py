@@ -55,7 +55,7 @@ _MAX_USER_SCORE_14D: Final[int] = 280
 
 
 class NonceRequestBody(BaseModel):
-    """Body of ``POST /v1/prometheon/identity/nonce``.
+    """Body of ``POST /api/v1/prometheon/identity/nonce``.
 
     The CLI sends ``username`` and ``email`` so the platform can return
     canonical hashes. The hotkey is bound to the issued nonce.

@@ -148,7 +148,7 @@ class BitFanClient:
     # -----------------------------------------------------------------
 
     def request_nonce(self, body: NonceRequestBody) -> dict[str, Any]:
-        """``POST /v1/prometheon/identity/nonce``.
+        """``POST /api/v1/prometheon/identity/nonce``.
 
         Returns the raw response JSON. The caller is expected to validate
         it via :class:`prometheon.identity.payloads.NonceResponse`.
@@ -181,19 +181,19 @@ class BitFanClient:
     # -----------------------------------------------------------------
 
     def get_aggregate_snapshot(self, activity_date: str = LATEST) -> AggregateSnapshot:
-        """``GET /v1/prometheon/phase1/snapshots/{activity_date}/aggregate``."""
+        """``GET /api/v1/prometheon/phase1/snapshots/{activity_date}/aggregate``."""
         path = aggregate_path(activity_date)
         raw = self._signed_get_json(path, mode=SnapshotMode.AGGREGATE)
         return AggregateSnapshot.model_validate(raw)
 
     def get_detailed_manifest(self, activity_date: str = LATEST) -> DetailedManifest:
-        """``GET /v1/prometheon/phase1/snapshots/{activity_date}/detailed/manifest``."""
+        """``GET /api/v1/prometheon/phase1/snapshots/{activity_date}/detailed/manifest``."""
         path = detailed_manifest_path(activity_date)
         raw = self._signed_get_json(path, mode=SnapshotMode.DETAILED)
         return DetailedManifest.model_validate(raw)
 
     def get_detailed_page(self, activity_date: str, page_index: int) -> DetailedPage:
-        """``GET /v1/prometheon/phase1/snapshots/{activity_date}/detailed/pages/{N}``."""
+        """``GET /api/v1/prometheon/phase1/snapshots/{activity_date}/detailed/pages/{N}``."""
         path = detailed_page_path(activity_date, page_index)
         raw = self._signed_get_json(path, mode=SnapshotMode.DETAILED)
         return DetailedPage.model_validate(raw)
