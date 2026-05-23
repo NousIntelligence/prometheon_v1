@@ -61,9 +61,13 @@ class TestNonceRequestBody:
             username="alice",
             email="alice@example.com",
             hotkey_ss58=SS58_A,
+            chain_network=ChainNetwork.FINNEY,
+            platform_instance_id="bitfan-production",
         )
         assert body.role == Role.MINER
         assert body.netuid == 123
+        assert body.chain_network is ChainNetwork.FINNEY
+        assert body.platform_instance_id == "bitfan-production"
 
     def test_rejects_empty_username(self) -> None:
         with pytest.raises(ValidationError):
@@ -73,6 +77,8 @@ class TestNonceRequestBody:
                 username="",
                 email="alice@example.com",
                 hotkey_ss58=SS58_A,
+                chain_network=ChainNetwork.FINNEY,
+                platform_instance_id="bitfan-production",
             )
 
     def test_rejects_negative_netuid(self) -> None:
@@ -83,6 +89,34 @@ class TestNonceRequestBody:
                 username="alice",
                 email="alice@example.com",
                 hotkey_ss58=SS58_A,
+                chain_network=ChainNetwork.FINNEY,
+                platform_instance_id="bitfan-production",
+            )
+
+    def test_rejects_missing_chain_network(self) -> None:
+        # EnvMatchGuard on the platform side requires this field; the schema
+        # makes it required so a CLI cannot build a body that would 400 at
+        # the network boundary.
+        with pytest.raises(ValidationError):
+            NonceRequestBody(  # type: ignore[call-arg]
+                role=Role.MINER,
+                netuid=123,
+                username="alice",
+                email="alice@example.com",
+                hotkey_ss58=SS58_A,
+                platform_instance_id="bitfan-production",
+            )
+
+    def test_rejects_empty_platform_instance_id(self) -> None:
+        with pytest.raises(ValidationError):
+            NonceRequestBody(
+                role=Role.MINER,
+                netuid=123,
+                username="alice",
+                email="alice@example.com",
+                hotkey_ss58=SS58_A,
+                chain_network=ChainNetwork.FINNEY,
+                platform_instance_id="",
             )
 
 
