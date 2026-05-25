@@ -10,9 +10,10 @@ A Bittensor subnet that converts BitFan platform-qualified user activity into de
 
 Prometheon does not score miner-submitted model output. Instead, the rewarded work is **real growth of BitFan Fan Groups**:
 
-1. **Miners** verify a BitFan account, register a Bittensor hotkey, create a Fan Group, and bring users into it.
-2. **BitFan** scores user activity over a rolling 14-day window with a daily score cap, produces a daily signed snapshot, and exposes it through an authenticated API.
-3. **Validators** download the snapshot, verify its platform signature and integrity, run a pure deterministic integer weight engine against the current metagraph, and submit one weight vector to Bittensor.
+1. **A BitFan user creates and leads a Fan Group** and brings users into it. Leading a Fan Group requires only a platform account — not miner status.
+2. **That Fan Group leader becomes a miner** by registering a Bittensor hotkey and running `verify-miner`, which requires they already lead a Fan Group and binds the hotkey to their account.
+3. **BitFan** scores user activity over a rolling 14-day window with a daily score cap, produces a daily signed snapshot, and exposes it through an authenticated API.
+4. **Validators** download the snapshot, verify its platform signature and integrity, run a pure deterministic integer weight engine against the current metagraph, and submit one weight vector to Bittensor.
 
 The full data flow is:
 
@@ -105,6 +106,7 @@ After activating the venv, `prometheon` is available directly on the path (no `u
 Before either the miner or validator quick-start works, you need:
 
 - [ ] A **BitFan account** on the appropriate environment (testnet uses the staging instance documented in [`configs/testnet.example.toml`](./configs/testnet.example.toml)).
+- [ ] For miners only: **ownership of a Fan Group** on BitFan. Any signed-in user can create one — it does not require miner status — but `verify-miner` rejects you unless you already lead one.
 - [ ] A **bootstrap token** for the **first verify** call only — issued through the BitFan portal at https://bitfanweb-production-658c.up.railway.app/me/prometheon. Click *Get bootstrap token* with your role (miner or validator). The token is one-time, scoped to `identity:verify`, expires after one hour, and is auto-revoked the moment `verify-miner` / `verify-validator` succeeds.
 - [ ] A **Bittensor wallet** created via `btcli` (coldkey + at least one hotkey).
 - [ ] The hotkey **registered on the target netuid** (`btcli subnet register`).
@@ -124,12 +126,20 @@ The flow below targets the live testnet deployment (`netuid = 481` on `chain_net
 
 Phase 1 miners **do not run a daemon**. The reward path is real BitFan Fan Group growth, scored off-chain by the platform; the subnet-side miner command exists to (a) verify the hotkey against the platform once and (b) print status diagnostics.
 
+**Order matters: own a Fan Group first.** `verify-miner` requires that you already lead a Fan Group on BitFan (any platform user can create one — no miner status needed). It binds your hotkey to that existing leadership; it does not create a Fan Group.
+
 ```bash
-# 1. Make your bootstrap token available via env var
+# 1. On the BitFan web app: create and grow a Fan Group (no miner status required).
+
+# 2. Register your hotkey on the subnet.
+btcli subnet register --netuid 481 --network test --wallet.name <wallet> --wallet.hotkey <hotkey>
+
+# 3. Make your bootstrap token available via env var
 #    (obtained from the BitFan portal — see Prerequisites above)
 export PROMETHEON_MINER_API_TOKEN="<bootstrap token from BitFan portal>"
 
-# 2. Verify your miner hotkey with the platform (one-time per hotkey)
+# 4. Verify your miner hotkey with the platform (one-time per hotkey).
+#    The platform rejects this unless you already lead a Fan Group.
 uv run prometheon verify-miner \
   --username <bitfan_username> \
   --email <bitfan_email> \
@@ -141,7 +151,7 @@ uv run prometheon verify-miner \
   --netuid 481
 ```
 
-After successful verification, create and grow your BitFan Fan Group on the platform. See [`docs/miner.md`](./docs/miner.md).
+After successful verification your Fan Group's scored activity flows into the daily snapshot. See [`docs/miner.md`](./docs/miner.md).
 
 ### Validator
 

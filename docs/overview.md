@@ -2,7 +2,7 @@
 
 Prometheon Phase 1 is a Bittensor subnet that converts BitFan platform-qualified user activity into deterministic on-chain weights.
 
-The subnet's rewarded work is **real growth of a BitFan Fan Group**, not subnet-side inference or scoring. Miners operate Fan Groups on the BitFan platform; validators consume a daily platform-signed snapshot, run a pure integer weight engine against the current Bittensor metagraph, and submit weights to the chain.
+The subnet's rewarded work is **real growth of a BitFan Fan Group**, not subnet-side inference or scoring. A Fan Group is a community surface on the BitFan platform that any signed-in user can create and lead — owning one is independent of, and a prerequisite for, becoming a miner. A miner is simply a Fan Group leader who has additionally registered a Bittensor hotkey and verified it against their platform account. Validators consume a daily platform-signed snapshot, run a pure integer weight engine against the current Bittensor metagraph, and submit weights to the chain.
 
 This document describes the architecture at a high level. For role-specific operational guides see [`miner.md`](./miner.md) and [`validator.md`](./validator.md).
 
@@ -48,7 +48,7 @@ No scaffolding for future phases lives in this tree. When a future phase ships i
 
 Every component has a clear responsibility:
 
-- **Miners** grow Fan Groups; they do not run a daemon that submits work to validators.
+- **Miners** are Fan Group leaders who have verified a registered hotkey; they grow their Fan Group and do not run a daemon that submits work to validators. Fan Group ownership comes first; `verify-miner` layers mining status on top.
 - **The BitFan platform** is the sole authority on user activity scoring, anti-farming detection, and snapshot signing.
 - **Validators** transform a signed snapshot into an on-chain weight vector — deterministically, with no subjective scoring.
 - **The Bittensor chain** processes the submitted weights through Yuma consensus and emits.
