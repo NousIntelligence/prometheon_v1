@@ -2,7 +2,9 @@
 
 Phase 1 miners earn rewards by growing a **BitFan Fan Group** — not by running a subnet daemon. The miner-side binary in this repository is informational only.
 
-This guide walks through the full miner setup: register a hotkey, verify your BitFan account, create a Fan Group, and grow active users.
+**Fan Group ownership comes first.** Any signed-in BitFan user can create and lead a Fan Group without being a miner. Becoming a miner is a second, optional step: you register a Bittensor hotkey and verify it against your platform account. `verify-miner` requires that you **already lead a Fan Group** — it converts an existing Fan Group leader into a registered miner and binds their hotkey. It does not create a Fan Group for you.
+
+This guide walks through the full setup in order: create a BitFan account, create and grow a Fan Group, register a hotkey, then verify to become a miner.
 
 ---
 
@@ -10,9 +12,10 @@ This guide walks through the full miner setup: register a hotkey, verify your Bi
 
 | Requirement | Notes |
 |---|---|
+| BitFan platform account | Sign up at the BitFan platform with a stable username and verified email. No subnet registration is required to create the account. |
+| Fan Group ownership | You must already **lead a Fan Group** before `verify-miner` will succeed. Create one from the BitFan web app — it does not require miner status. This is the precondition the platform's verify guard checks. |
 | Bittensor wallet | A coldkey + hotkey pair under `~/.bittensor/wallets/`. Create with `btcli wallet new_coldkey` and `btcli wallet new_hotkey`. |
-| Subnet registration | Register the hotkey on Prometheon's netuid with `btcli subnet register`. |
-| BitFan platform account | Sign up at the BitFan platform with a stable username and verified email. |
+| Subnet registration | Register the hotkey on Prometheon's netuid with `btcli subnet register`. Needed before `verify-miner` binds the hotkey. |
 | Bootstrap token (first verify only) | Obtained from the [BitFan portal](https://bitfan.ai/me/prometheon) — click *Get bootstrap token* with role *miner*. The token is one-time, scoped to `identity:verify:miner`, expires after one hour, and is auto-revoked the moment `verify-miner` succeeds. Export it as `PROMETHEON_MINER_API_TOKEN`. |
 
 Install the CLI:
@@ -24,9 +27,26 @@ prometheon --version
 
 ---
 
-## Step 1 — Verify Your BitFan Account
+## Step 1 — Create and Grow Your Fan Group
 
-Link your Bittensor hotkey to your BitFan account by signing a canonical identity payload with your hotkey. The first call uses the one-time bootstrap token from the BitFan portal:
+Sign in to the BitFan web app and create a Fan Group, then bring users in. You do **not** need to be a miner — any signed-in user can lead a Fan Group. This must happen before you verify as a miner.
+
+Make sure member activity is genuine and meets BitFan's published quality criteria — anti-farming detection runs platform-side and will zero out invalidated activity.
+
+Reward eligibility (consolidated in [`scoring.md`](./scoring.md)):
+
+- Each user can join exactly **one** Fan Group.
+- A user is an **active member** for threshold purposes when their 14-day score is **strictly greater than 50**.
+- A miner is **reward-eligible** only if they have **≥ 3 active members**.
+- Among eligible miners the top **10** by score share the daily reward pool proportionally.
+
+You can grow your Fan Group for as long as you like before deciding to register as a miner. The reward path only activates once you complete Step 2.
+
+---
+
+## Step 2 — Register a Hotkey and Verify as a Miner
+
+Once you lead a Fan Group, register a Bittensor hotkey on the subnet (`btcli subnet register`), then link it to your BitFan account by signing a canonical identity payload. The first verify call uses the one-time bootstrap token from the BitFan portal:
 
 ```bash
 export PROMETHEON_MINER_API_TOKEN="<bootstrap token from BitFan portal>"
@@ -42,24 +62,13 @@ prometheon verify-miner \
     --netuid             <netuid>
 ```
 
-On success the platform sets `miner_verified = true` for your account, links it to your hotkey, and revokes the bootstrap token in the same transaction. The CLI never re-normalises your username or email locally — the platform returns canonical hashes that the CLI signs verbatim, so there is no risk of normalisation drift between your machine and the platform.
+The platform's verify guard first checks that the calling user **already leads a Fan Group**; if not, it rejects with a clear error and you should complete Step 1 first. On success the platform sets `miner_verified = true`, links your hotkey to your miner profile, and revokes the bootstrap token in the same transaction. `verify-miner` does **not** create a Fan Group — it only binds the hotkey to your existing leadership.
 
-If the platform reports an error (`AUTH_INVALID_TOKEN`, `NONCE_EXPIRED`, `HOTKEY_ALREADY_LINKED`, etc.), the CLI surfaces the error code and a clear message. See [`security.md`](./security.md) for the full catalog.
+The CLI never re-normalises your username or email locally — the platform returns canonical hashes that the CLI signs verbatim, so there is no risk of normalisation drift between your machine and the platform.
 
----
+If the platform reports an error (`AUTH_INVALID_TOKEN`, `NONCE_EXPIRED`, `HOTKEY_ALREADY_LINKED`, or a "must lead a Fan Group" rejection, etc.), the CLI surfaces the error code and a clear message. See [`security.md`](./security.md) for the full catalog.
 
-## Step 2 — Create and Grow Your Fan Group
-
-After verification, log in to BitFan and create a Fan Group. Bring users in. Make sure their activity is genuine and meets BitFan's published quality criteria — anti-farming detection runs platform-side and will zero out invalidated activity.
-
-Reward eligibility (consolidated in [`scoring.md`](./scoring.md)):
-
-- Each user can join exactly **one** Fan Group.
-- A user is an **active member** for threshold purposes when their 14-day score is **strictly greater than 50**.
-- A miner is **reward-eligible** only if they have **≥ 3 active members**.
-- Among eligible miners the top **10** by score share the daily reward pool proportionally.
-
-That is the entire mechanism.
+Once verified, your Fan Group's scored activity flows into the daily snapshot and the reward path is active. That is the entire mechanism.
 
 ---
 
