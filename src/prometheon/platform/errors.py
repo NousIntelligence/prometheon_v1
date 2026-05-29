@@ -92,8 +92,7 @@ def _sanitise_details(details: dict[str, Any] | None) -> dict[str, Any] | None:
             _SANITISE_WARN_SEEN.add(k)
         if novel:
             sys.stderr.write(
-                "prometheon-cli: dropped sensitive detail key(s): "
-                f"{', '.join(novel)}\n"
+                f"prometheon-cli: dropped sensitive detail key(s): {', '.join(novel)}\n"
             )
     return sanitised
 
@@ -474,9 +473,7 @@ def platform_error_from_response_body(
             return cls(
                 status_code=status_code,
                 detail=message if isinstance(message, str) else None,
-                details=_sanitise_details(
-                    details_raw if isinstance(details_raw, dict) else None
-                ),
+                details=_sanitise_details(details_raw if isinstance(details_raw, dict) else None),
             )
         if isinstance(code, str):
             # Wire returned a ``code`` whose shape we refuse to display

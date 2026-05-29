@@ -296,9 +296,7 @@ class TestPrivacyBackstop:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         # Reset the dedup set so the warning fires deterministically.
-        monkeypatch.setattr(
-            platform_errors_module, "_SANITISE_WARN_SEEN", set()
-        )
+        monkeypatch.setattr(platform_errors_module, "_SANITISE_WARN_SEEN", set())
         body = {
             "code": "HOTKEY_ALREADY_LINKED",
             "message": "Hotkey is already linked.",
