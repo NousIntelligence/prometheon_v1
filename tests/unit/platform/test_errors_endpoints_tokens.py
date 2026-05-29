@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import pytest
 
+import prometheon.platform.errors as platform_errors_module
 from prometheon.platform.endpoints import (
     AGGREGATE_PATH_TEMPLATE,
     DETAILED_MANIFEST_PATH_TEMPLATE,
@@ -29,13 +30,30 @@ from prometheon.platform.endpoints import (
 from prometheon.platform.errors import (
     AccountLockedOutError,
     AuthInvalidTokenError,
+    AuthTokenScopeMissingError,
+    ColdkeyOwnershipNotProvenError,
+    DiscordHandleMissingError,
+    EnvironmentMismatchPlatformError,
+    MinerFanGroupRequiredError,
     NonceAlreadyUsedError,
     NonceExpiredError,
     PlatformBadRequestError,
     PlatformError,
     PlatformServerError,
+    ProfileAlreadyHasHotkeyError,
     RotationCooldownActiveError,
+    SignatureAddressMismatchError,
+    SignatureDomainMismatchError,
+    SignatureInvalidFormatError,
+    SignaturePlatformError,
+    SignatureUnsupportedKeyTypeError,
+    SignatureVerificationFailedError,
     SnapshotNotReadyError,
+    SnapshotPageHashError,
+    SnapshotPageNotFoundError,
+    SnapshotStorageAccessDeniedError,
+    SnapshotStorageError,
+    TwoFactorProofInvalidError,
     exception_for_code,
     platform_error_from_response_body,
 )
@@ -114,6 +132,215 @@ class TestPlatformErrorFromResponseBody:
         exc = platform_error_from_response_body(body, status_code=400)
         assert exc.detail is not None
         assert len(exc.detail) <= 500
+
+
+# ---------------------------------------------------------------------------
+# Binding-ledger / snapshot-storage / signature subclasses
+# ---------------------------------------------------------------------------
+
+
+class TestExtendedCatalog:
+    """Codes added to support the platform team's typed-details contract.
+
+    These five binding-ledger codes, four snapshot-storage codes, and
+    five granular signature.* primitives replace the older single
+    SIGNATURE_INVALID code on the wire.
+    """
+
+    @pytest.mark.parametrize(
+        "code, expected_cls",
+        [
+            # Binding-ledger
+            ("PROFILE_ALREADY_HAS_HOTKEY", ProfileAlreadyHasHotkeyError),
+            ("MINER_FAN_GROUP_REQUIRED", MinerFanGroupRequiredError),
+            ("COLDKEY_OWNERSHIP_NOT_PROVEN", ColdkeyOwnershipNotProvenError),
+            ("DISCORD_HANDLE_MISSING", DiscordHandleMissingError),
+            ("TWO_FACTOR_PROOF_INVALID", TwoFactorProofInvalidError),
+            # Snapshot storage
+            ("SNAPSHOT_PAGE_NOT_FOUND", SnapshotPageNotFoundError),
+            ("SNAPSHOT_STORAGE_ACCESS_DENIED", SnapshotStorageAccessDeniedError),
+            ("SNAPSHOT_STORAGE_ERROR", SnapshotStorageError),
+            ("SNAPSHOT_PAGE_HASH_ERROR", SnapshotPageHashError),
+            # Auth scope (typed details)
+            ("AUTH_TOKEN_SCOPE_MISSING", AuthTokenScopeMissingError),
+            # Signature primitives — dotted lowercase wire codes
+            ("signature.invalid_format", SignatureInvalidFormatError),
+            ("signature.unsupported_key_type", SignatureUnsupportedKeyTypeError),
+            ("signature.verification_failed", SignatureVerificationFailedError),
+            ("signature.address_mismatch", SignatureAddressMismatchError),
+            ("signature.domain_mismatch", SignatureDomainMismatchError),
+        ],
+    )
+    def test_new_codes_resolve_to_specific_class(
+        self, code: str, expected_cls: type[PlatformError]
+    ) -> None:
+        assert exception_for_code(code) is expected_cls
+
+    def test_signature_classes_share_abstract_base(self) -> None:
+        # `except SignaturePlatformError` must catch every concrete
+        # signature.* class without enumerating them.
+        for cls in (
+            SignatureInvalidFormatError,
+            SignatureUnsupportedKeyTypeError,
+            SignatureVerificationFailedError,
+            SignatureAddressMismatchError,
+            SignatureDomainMismatchError,
+        ):
+            assert issubclass(cls, SignaturePlatformError)
+            assert issubclass(cls, PlatformError)
+
+    def test_signature_platform_error_base_has_no_wire_code(self) -> None:
+        # The abstract base is intentionally absent from the wire catalog
+        # — only concrete subclasses appear on the wire.
+        assert SignaturePlatformError.code == ""
+
+    def test_signature_invalid_legacy_code_no_longer_catalogued(self) -> None:
+        # Platform deleted SIGNATURE_INVALID — must fall through to the
+        # generic base, not resolve to a removed subclass.
+        assert exception_for_code("SIGNATURE_INVALID") is PlatformError
+        assert not hasattr(platform_errors_module, "SignatureInvalidError")
+
+    def test_environment_mismatch_resolves_to_platform_side_class(self) -> None:
+        # ``ENVIRONMENT_MISMATCH`` is shared with the identity layer's
+        # local-origin error; the catalog must resolve to the platform-
+        # side class so the renderer routes through the platform path.
+        assert exception_for_code("ENVIRONMENT_MISMATCH") is EnvironmentMismatchPlatformError
+
+
+class TestDetailsPropagation:
+    def test_details_dict_is_attached_to_instance(self) -> None:
+        body = {
+            "code": "ROTATION_COOLDOWN_ACTIVE",
+            "message": "Wait before rotating again.",
+            "details": {"cooldown_until": "2026-05-30T00:00:00Z"},
+        }
+        exc = platform_error_from_response_body(body, status_code=409)
+        assert isinstance(exc, RotationCooldownActiveError)
+        assert exc.details == {"cooldown_until": "2026-05-30T00:00:00Z"}
+
+    def test_missing_details_is_none(self) -> None:
+        body = {"code": "MINER_FAN_GROUP_REQUIRED", "message": "Own a Fan Group first."}
+        exc = platform_error_from_response_body(body, status_code=403)
+        assert exc.details is None
+
+    def test_typed_details_for_scope_missing(self) -> None:
+        body = {
+            "code": "AUTH_TOKEN_SCOPE_MISSING",
+            "message": "Token does not carry the required scope.",
+            "details": {"required_scope": "identity:verify:miner"},
+        }
+        exc = platform_error_from_response_body(body, status_code=403)
+        assert isinstance(exc, AuthTokenScopeMissingError)
+        assert exc.details == {"required_scope": "identity:verify:miner"}
+
+    def test_typed_details_for_signature_domain_mismatch(self) -> None:
+        body = {
+            "code": "signature.domain_mismatch",
+            "message": "Domain string did not match.",
+            "details": {"expected_domain": "PROMETHEON_API_REQUEST_V1"},
+        }
+        exc = platform_error_from_response_body(body, status_code=403)
+        assert isinstance(exc, SignatureDomainMismatchError)
+        assert isinstance(exc, SignaturePlatformError)
+        assert exc.details == {"expected_domain": "PROMETHEON_API_REQUEST_V1"}
+
+
+class TestPrivacyBackstop:
+    """Cross-user keys must be dropped at parse time.
+
+    The platform commits never to emit cross-user information; this list
+    is defence-in-depth in case a future regression slips one through.
+    The CLI must drop these keys before the exception is constructed so
+    they never reach the renderer or the validator's on-disk event log.
+    """
+
+    @pytest.mark.parametrize(
+        "sensitive_key",
+        [
+            "conflicting_username",
+            "conflicting_user_id",
+            "profile_owner_id",
+            "registered_user_id",
+            "other_account_username",
+            "other_user_id",
+            "current_holder_username",
+            "current_owner_id",
+        ],
+    )
+    def test_drops_known_sensitive_key(self, sensitive_key: str) -> None:
+        body = {
+            "code": "HOTKEY_ALREADY_LINKED",
+            "message": "Hotkey is already linked.",
+            "details": {sensitive_key: "alice", "benign_field": 1},
+        }
+        exc = platform_error_from_response_body(body, status_code=409)
+        assert exc.details is not None
+        assert sensitive_key not in exc.details
+        assert exc.details.get("benign_field") == 1
+
+    def test_preserves_benign_keys(self) -> None:
+        body = {
+            "code": "RECOVERY_COOLDOWN_ACTIVE",
+            "message": "Cooldown active.",
+            "details": {"cooldown_until": "2026-05-30T00:00:00Z", "elapsed_seconds": 7200},
+        }
+        exc = platform_error_from_response_body(body, status_code=409)
+        assert exc.details == {
+            "cooldown_until": "2026-05-30T00:00:00Z",
+            "elapsed_seconds": 7200,
+        }
+
+    def test_warns_to_stderr_on_first_drop(
+        self,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        # Reset the dedup set so the warning fires deterministically.
+        monkeypatch.setattr(
+            platform_errors_module, "_SANITISE_WARN_SEEN", set()
+        )
+        body = {
+            "code": "HOTKEY_ALREADY_LINKED",
+            "message": "Hotkey is already linked.",
+            "details": {"conflicting_username": "alice"},
+        }
+        platform_error_from_response_body(body, status_code=409)
+        captured = capsys.readouterr()
+        assert "conflicting_username" in captured.err
+        assert "dropped sensitive detail key" in captured.err
+
+
+class TestCodeShapeGuard:
+    """Wire codes outside the strict regex must not display verbatim.
+
+    The operator-facing trailer the renderer emits puts the wire code in
+    a tight position; a malicious or buggy server returning terminal
+    control sequences or absurdly long codes would corrupt the operator's
+    terminal. The CLI validates the shape at parse time and falls through
+    to the generic bucket, preserving the offending code (truncated) in
+    ``detail`` so debugging is still possible.
+    """
+
+    def test_valid_dotted_lowercase_code_passes(self) -> None:
+        body = {"code": "signature.invalid_format", "message": "ok"}
+        exc = platform_error_from_response_body(body, status_code=403)
+        assert isinstance(exc, SignatureInvalidFormatError)
+
+    @pytest.mark.parametrize(
+        "bad_code",
+        [
+            "code with space",
+            "code\x1b[31mwith-ansi",
+            "code\nnewline",
+            "x" * 65,  # exceeds 64-char cap
+            "",
+        ],
+    )
+    def test_malformed_code_drops_to_generic_bucket(self, bad_code: str) -> None:
+        body = {"code": bad_code, "message": "something"}
+        exc = platform_error_from_response_body(body, status_code=400)
+        # Generic fall-through, not the specific subclass.
+        assert type(exc) is PlatformBadRequestError
 
 
 # ---------------------------------------------------------------------------
