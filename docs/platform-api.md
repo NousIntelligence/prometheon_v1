@@ -222,16 +222,29 @@ Cross-page invariants the validator enforces:
 
 ## Error Envelope
 
-Every non-2xx response carries a small JSON envelope:
+Every non-2xx response carries a JSON envelope of the following shape:
 
 ```json
 {
-  "error": "<CODE>",
-  "detail": "<human readable explanation>"
+  "success": false,
+  "error": {
+    "code": "<UPPER_SNAKE or dotted.lowercase wire code>",
+    "message": "<human readable explanation>",
+    "details": { "...optional typed payload..." }
+  }
 }
 ```
 
-The set of codes used by Phase 1 is documented in [`security.md`](./security.md#failure-code-catalog).
+`details` is omitted for the majority of codes; six codes carry a structured payload — see [`security.md` § Typed Details and Privacy Backstop](./security.md#typed-details-and-privacy-backstop) for the per-code field list and the privacy-backstop key-pattern filter the CLI applies at parse time.
+
+Wire codes match one of two shapes:
+
+- `UPPER_SNAKE` — identity, hotkey, snapshot, binding-ledger, and cross-environment codes.
+- `dotted.lowercase` — the five granular `signature.*` primitives.
+
+The CLI validates the wire-code shape against `^[a-zA-Z0-9._-]{1,64}$` at parse time; anything outside this shape is refused verbatim and the CLI surfaces a malformed-code error instead, so a corrupt or hostile payload can never inject terminal control sequences via the operator-facing trailer.
+
+The full code catalog is in [`security.md` § Failure Code Catalog](./security.md#failure-code-catalog). Codes the CLI does not yet know about route through a fallback path that prints the wire code verbatim and links to the labelled issue template at `.github/ISSUE_TEMPLATE/unrecognised-platform-code.md`.
 
 ---
 

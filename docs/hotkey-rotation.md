@@ -10,6 +10,17 @@ Miner and validator state is tracked **separately** per account. Rotating your m
 
 ---
 
+## Recovery
+
+If you do not have your old hotkey, choose one of the two recovery paths below:
+
+- [Coldkey Recovery](#coldkey-recovery) — you still control the coldkey for the wallet that holds the lost hotkey. This is the preferred path; cooldown applies but no Ops Console step is needed.
+- [Manual Recovery](#manual-recovery) — you do not control the coldkey either. This path requires a 2FA proof, a Discord handle on the account, and Ops Console approval; it deliberately has a longer cooldown to limit abuse.
+
+Both paths enter a 24-hour pending state before activation, and both start a 14-day [recovery cooldown](#cooldowns) after activation. Errors specific to recovery (`RECOVERY_PENDING`, `RECOVERY_COOLDOWN_ACTIVE`, `DISCORD_HANDLE_MISSING`, `TWO_FACTOR_PROOF_INVALID`) are catalogued in [`security.md`](./security.md#failure-code-catalog).
+
+---
+
 ## Normal Rotation
 
 Use when you have both wallets locally.
