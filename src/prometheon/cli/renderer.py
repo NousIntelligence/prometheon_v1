@@ -469,7 +469,7 @@ _PLATFORM_TEMPLATES: dict[str, ErrorTemplate] = {
             "Try again after the platform's publish cadence completes for the "
             "day, or pass `--activity-date` to target a known-published date."
         ),
-        docs_anchor="platform-api.md#snapshots",
+        docs_anchor="platform-api.md#snapshot-endpoints",
     ),
     SnapshotModeInvalidError.code: ErrorTemplate(
         headline="The requested snapshot mode is not supported by the platform.",
@@ -494,7 +494,7 @@ _PLATFORM_TEMPLATES: dict[str, ErrorTemplate] = {
             "Check the `--activity-date` flag (or the validator config) and "
             "retry with a date in `YYYY-MM-DD` form within the supported range."
         ),
-        docs_anchor="platform-api.md#snapshots",
+        docs_anchor="platform-api.md#snapshot-endpoints",
     ),
     SnapshotAccessDeniedError.code: ErrorTemplate(
         headline="The platform refuses to serve this snapshot to your account.",
@@ -519,7 +519,7 @@ _PLATFORM_TEMPLATES: dict[str, ErrorTemplate] = {
             "could not return — usually a transient publish-pipeline race."
         ),
         remediation="Retry the operation. If the failure persists, contact platform operators.",
-        docs_anchor="platform-api.md#detailed-snapshots",
+        docs_anchor="platform-api.md#snapshot-endpoints",
     ),
     SnapshotStorageAccessDeniedError.code: ErrorTemplate(
         headline="Snapshot storage refused the platform's read on your behalf.",
@@ -529,7 +529,7 @@ _PLATFORM_TEMPLATES: dict[str, ErrorTemplate] = {
             "remediate."
         ),
         remediation="Contact the platform operators — the issue is on their side.",
-        docs_anchor="platform-api.md#snapshots",
+        docs_anchor="platform-api.md#snapshot-endpoints",
     ),
     SnapshotStorageError.code: ErrorTemplate(
         headline="The platform's snapshot storage backend reported an error.",
@@ -538,7 +538,7 @@ _PLATFORM_TEMPLATES: dict[str, ErrorTemplate] = {
             "Retry the operation. If the failure persists across several "
             "minutes, contact the platform operators."
         ),
-        docs_anchor="platform-api.md#snapshots",
+        docs_anchor="platform-api.md#snapshot-endpoints",
     ),
     SnapshotPageHashError.code: ErrorTemplate(
         headline="A snapshot page failed the platform's own integrity check.",
@@ -569,7 +569,7 @@ _PLATFORM_TEMPLATES: dict[str, ErrorTemplate] = {
             "(or your validator config) to match the values the platform "
             "expects (shown below)."
         ),
-        docs_anchor="security.md#cross-environment-replay-defence",
+        docs_anchor="security.md#cross-environment-replay-defense",
         details_renderer=_render_environment_expected,
     ),
     PathMismatchError.code: ErrorTemplate(
@@ -744,7 +744,7 @@ _LOCAL_TEMPLATES: dict[type[Exception], ErrorTemplate] = {
             "Check your validator config — the `[chain]` and `[platform]` blocks "
             "must point at the same environment the platform is signing for."
         ),
-        docs_anchor="security.md#cross-environment-replay-defence",
+        docs_anchor="security.md#cross-environment-replay-defense",
     ),
     PayloadExpiredError: ErrorTemplate(
         headline="A received payload has already expired.",
