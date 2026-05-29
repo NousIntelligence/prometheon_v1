@@ -98,6 +98,21 @@ The runtime will refuse to start if:
 
 See [`deployment/mainnet.md`](./deployment/mainnet.md) for the operational checklist around `version_key`, snapshot key rotation, and chain hyperparameter compatibility.
 
+### Snapshot Modes
+
+The `[validator] mode` setting selects how the validator consumes the daily platform-signed snapshot:
+
+- `aggregate` — a single signed response carrying the full per-miner roll-up. Cheapest call (one HTTP request) and the default for typical operators.
+- `detailed` — a signed manifest plus N page bodies streamed through the validator's accumulator. The detailed mode lets you cross-check per-user activity for forensic / auditing workflows; it is more expensive in bandwidth but produces identical engine output. Most operators run aggregate.
+
+The platform may refuse to serve the requested mode for a given activity date (`SNAPSHOT_MODE_INVALID`) — switch the configured mode to one it does support.
+
+### Snapshot Reads
+
+Snapshot reads are authenticated and signed. Every request carries the `PROMETHEON_*_API_TOKEN` and an `X-Prometheon-*` header set signed under `PROMETHEON_API_REQUEST_V1` (skew window 300 s; nonce TTL 600 s). See [`security.md` § API Request Signing](./security.md#api-request-signing) for the canonical body.
+
+The token must carry the matching `snapshot:read:<aggregate|detailed>` scope; the platform refuses scope-mismatched reads with `AUTH_TOKEN_SCOPE_MISSING` and surfaces the required scope through the renderer's typed-details line. Account-level refusal (e.g., your validator account has not completed verify) surfaces as `SNAPSHOT_ACCESS_DENIED`.
+
 ---
 
 ## Step 3 — Run
