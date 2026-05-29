@@ -176,6 +176,58 @@ Event types emitted:
 
 ---
 
+## Troubleshooting
+
+The CLI prints a structured block on every failure: the wire code on the top line, a one-line headline, and a Remediation paragraph. Add `--verbose` for a sanitised diagnostic trailer that captures the typed `details` payload, HTTP status, and exception class:
+
+```bash
+prometheon --verbose validator run --config ~/prometheon-validator.toml --once
+```
+
+For long-running validators, the same renderer block is emitted to stderr per failed cycle, prefixed with the cycle index — `tail -F` on stderr captures it in real time. The renderer redacts credential-shape values from the trailer (see [`security.md` § API Tokens](./security.md#api-tokens)).
+
+The persisted `.validator-state/state.json` carries the last failure as a `(code, message)` pair; the `events.ndjson` log carries one line per cycle-level outcome. Neither file ever contains the typed `details` dict — those stay on the in-memory exception so a long-running validator's state file does not accumulate server-controlled fields.
+
+### Codes you are most likely to hit
+
+#### Snapshot-side codes
+
+| Wire code | Likely cause | Resolution |
+|---|---|---|
+| `SNAPSHOT_NOT_READY` | No snapshot has been published for the requested activity date yet. | Wait for the platform's publish cadence to complete for the day, or set `activity_date` in `[validator]` to a date already published. |
+| `SNAPSHOT_MODE_INVALID` | The configured `mode` (`aggregate` / `detailed`) is not served for this date. | Switch the configured mode to one the platform supports — typically `aggregate`. See [Snapshot Modes](#snapshot-modes). |
+| `SNAPSHOT_DATE_INVALID` | The `activity_date` is outside the platform's publishing window or wrong-shaped. | Use `YYYY-MM-DD` for a date inside the window, or `latest`. |
+| `SNAPSHOT_ACCESS_DENIED` | Your account does not currently have access to the snapshot read endpoint for this snapshot. | Confirm `verify-validator` completed and that your operational token carries the `snapshot:read:<aggregate\|detailed>` scope. See [Snapshot Reads](#snapshot-reads). |
+| `SNAPSHOT_PAGE_NOT_FOUND` / `SNAPSHOT_STORAGE_ERROR` | Transient platform-side storage condition. | Retry. If the failure persists across several minutes, raise it with the platform team. |
+| `SNAPSHOT_STORAGE_ACCESS_DENIED` | Infrastructure-level access policy on the platform storage backend refused the read. | Out of operator scope — contact platform operators. |
+| `SNAPSHOT_PAGE_HASH_ERROR` | The platform's server-side integrity check rejected one of its own pages. | Retry. If the failure repeats, the platform team needs to re-publish the snapshot. |
+| `signature.verification_failed` (local) | The CLI could not verify the platform's Ed25519 signature on the snapshot. **This is the local-side error**; the renderer's block carries the `(local verification)` origin label. | Re-fetch the snapshot. If the failure persists, confirm `[platform.snapshot_keys]` in your config matches the platform's currently published key set. See [`security.md` § Snapshot Integrity](./security.md#snapshot-integrity). |
+
+#### Identity / authentication codes
+
+| Wire code | Likely cause | Resolution |
+|---|---|---|
+| `AUTH_INVALID_TOKEN` | Operational token revoked, expired, or never valid for this platform instance. | Re-issue from the BitFan portal with the matching scope and re-export `PROMETHEON_VALIDATOR_API_TOKEN`. |
+| `AUTH_TOKEN_SCOPE_MISSING` | Token does not carry the scope the endpoint requires; the renderer's typed-details line shows which. | Re-issue with the correct scope. |
+| `ACCOUNT_NOT_VERIFIED` | Endpoint requires a verified validator account. | Run `prometheon verify-validator` first using a bootstrap token. |
+| `ENVIRONMENT_MISMATCH` | `chain_network` / `platform_instance_id` does not match what the platform expects. The typed-details line shows the expected values. | Update the `[chain]` and `[platform]` blocks in your config. See [`security.md` § Cross-Environment Replay Defense](./security.md#cross-environment-replay-defense). |
+
+#### Subnet runtime fail-closed conditions
+
+These are not platform errors; they are conditions the validator refuses to start (or submit) under because the result would be unsafe.
+
+| Code | Cause | Resolution |
+|---|---|---|
+| `chain.commit_reveal_enabled` | The subnet has commit-reveal turned on at the chain level. Phase 1 does not support commit-reveal. | Wait until the subnet owner disables commit-reveal, or contact them. The validator refuses to submit until then. |
+| `chain.weights_version_mismatch` | The configured `[chain] version_key` differs from the chain's `weights_version` hyperparameter. | Update `version_key` in the config to the value the subnet owner has currently set. |
+| `chain.mechid_missing` | The installed `bittensor` SDK lacks `mechid` support and the config does not enable the legacy override. | Upgrade the `bittensor` package. The legacy override (`allow_legacy_sdk_without_mechid = true`) is only acceptable on `local`. |
+| `chain.set_weights_failed` | The chain rejected the `set_weights` extrinsic — see the `--verbose` trailer for the underlying SDK error. | Inspect the trailer's `ExtrinsicResponse` diagnostic fields and act on the specific cause (insufficient stake, version key drift, permit revocation, etc.). |
+| `NO_VALID_WEIGHT_TARGET` | Engine returned `status=no_valid_weight_target` (Case D — no qualifying miner). | Expected and self-resolves when at least one eligible miner reappears in a subsequent snapshot. The cycle is **not** a failure; it is a deliberate no-op. |
+
+For the full catalog (binding-ledger, snapshot storage, the five signature primitives, the typed-details payloads) see [`security.md` § Failure Code Catalog](./security.md#failure-code-catalog).
+
+---
+
 ## Operational Notes
 
 - **Snapshot key rotation**: the platform team will publish new `platform_key_id` entries before retiring an old one. Add the new entry to your `[platform.snapshot_keys]` config block before the platform starts signing with it. Multiple active keys may coexist.
