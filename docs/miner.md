@@ -113,11 +113,30 @@ Rewards flow exclusively from platform-scored activity of users in your Fan Grou
 
 ## Troubleshooting
 
-| Symptom | Likely cause | Resolution |
-|---|---|---|
-| `AUTH_INVALID_TOKEN` | API token wrong / expired | Re-issue from the BitFan platform; export `PROMETHEON_MINER_API_TOKEN`. |
-| `NONCE_EXPIRED` | More than ~10 minutes between request and submit | Re-run `prometheon verify-miner`. |
-| `HOTKEY_ALREADY_LINKED` | This hotkey is verified for a different account | Use a fresh hotkey or rotate via `prometheon rotate-hotkey`. |
-| `chain_network` mismatch | Wrong `--chain-network` for the platform instance | Confirm with your operator which Bittensor network the platform serves. |
+The CLI prints a structured block for every error: the wire code on the top line, a one-line headline, and a Remediation paragraph. Add `--verbose` (anywhere on the command line) for a sanitised diagnostic trailer that captures the typed `details` payload, HTTP status, and other context useful for filing an issue:
 
-For deeper failure-mode coverage see [`security.md`](./security.md).
+```bash
+prometheon --verbose verify-miner --username alice --email alice@example.com ...
+```
+
+The renderer never echoes API tokens or other credential-shaped values to the trailer — see [`security.md` § API Tokens](./security.md#api-tokens) for the full redaction list.
+
+### Codes you are most likely to hit
+
+| Wire code | Likely cause | Resolution |
+|---|---|---|
+| `AUTH_INVALID_TOKEN` | The bootstrap or operational token was revoked, expired, or never valid for this platform instance. | Open the [BitFan portal](https://bitfan.ai/me/prometheon) → issue a fresh token for your role → `export PROMETHEON_MINER_API_TOKEN=<new>` → retry. |
+| `AUTH_TOKEN_SCOPE_MISSING` | The token in use does not carry the scope this endpoint requires. The renderer's typed-details line shows the missing scope. | Re-issue from the portal with the matching scope (`identity:verify:miner`, `identity:rotate:miner`, etc.) and re-export. |
+| `ACCOUNT_NOT_VERIFIED` | Endpoint requires an already-verified miner role for this account. | Run `prometheon verify-miner` first with a bootstrap token. |
+| `NONCE_EXPIRED` | More than ~10 minutes between the nonce request and the verify submission. | Re-run the command. The CLI fetches a fresh nonce automatically each attempt. |
+| `NONCE_ALREADY_USED` | The nonce was consumed by a previous attempt — usually a re-run after a partial failure. | Re-run the command. |
+| `NONCE_CONTEXT_MISMATCH` | The envelope's chain_network / platform_instance_id / role / hotkey differs from the nonce-issue-time values. Almost always a flag typo. | Double-check `--chain-network`, `--platform-instance-id`, `--netuid`, and `--wallet-hotkey`. |
+| `HOTKEY_ALREADY_LINKED` | This hotkey is bound to a different account on the platform. | Either pick a different hotkey, or — if this hotkey is yours but the account it is currently bound to is no longer yours — run `prometheon recover-hotkey` to take ownership formally. |
+| `HOTKEY_NOT_LINKED` | The rotate / recover flow expects an existing bound hotkey but this account does not have one yet. | Run `prometheon verify-miner` first. |
+| `PROFILE_ALREADY_HAS_HOTKEY` | `verify-miner` called on an account that is already bound. The typed-details line says whether to `rotate` or `recover`. | Run the recommended command. |
+| `MINER_FAN_GROUP_REQUIRED` | Your BitFan account does not currently lead a Fan Group. `verify-miner` does not create one for you. | Sign into the BitFan web app, create and grow a Fan Group, then re-run `verify-miner`. |
+| `ROTATION_COOLDOWN_ACTIVE` | Less than the rotation cooldown has elapsed since the last successful rotation. The typed-details line carries `cooldown_until`. | Wait for the timestamp shown. If your old hotkey is compromised right now, `prometheon recover-hotkey` bypasses the rotation cooldown (subject to its own 14-day cooldown — see [`hotkey-rotation.md` § Cooldowns](./hotkey-rotation.md#cooldowns)). |
+| `ENVIRONMENT_MISMATCH` | The `chain_network` or `platform_instance_id` you passed does not match what the platform expects. The typed-details line shows the values the platform expects. | Update `--chain-network` / `--platform-instance-id` to the expected values and re-run. |
+| Unrecognised wire code | The platform shipped a new code in an additive release pre-dating this CLI build. | Upgrade to the latest published `prometheon` release. If you are already current, open the labelled issue template linked in the rendered block. |
+
+For the full catalog (binding-ledger, snapshot, signature primitives) see [`security.md` § Failure Code Catalog](./security.md#failure-code-catalog).
