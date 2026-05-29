@@ -56,6 +56,7 @@ from prometheon.mechanisms.phase1_growth.policy import Phase1Policy
 from prometheon.mechanisms.phase1_growth.snapshot import MinerRecord
 from prometheon.platform.client import BitFanClient
 from prometheon.platform.endpoints import LATEST, SnapshotMode
+from prometheon.platform.errors import PlatformError
 from prometheon.platform.schemas import AggregateSnapshot, DetailedManifest
 from prometheon.platform.signing import (
     DetailedStreamingAccumulator,
@@ -71,6 +72,38 @@ from prometheon.validator.state import (
     read_state,
     write_state,
 )
+
+# Cap on the message field that lands in state.json / events.ndjson. The
+# detail string is server-provided when the error is a PlatformError, so
+# we strip C0 control characters (which would otherwise corrupt the log
+# stream or the operator-facing trailer) and length-bound it.
+_PERSIST_MESSAGE_CAP: int = 300
+
+
+def _safe_failure_summary(exc: BaseException) -> tuple[str, str]:
+    """Return a ``(code, message)`` pair safe to persist to disk.
+
+    For :class:`PlatformError` we never serialise the raw ``details`` dict
+    or ``str(exc)`` — only the wire code plus a control-char-stripped,
+    length-bound ``detail`` string. The ``details`` dict has already been
+    privacy-sanitised at parse time but is intentionally kept off-disk so
+    the long-running validator's state file does not accumulate
+    server-controlled typed payloads.
+
+    For non-platform exceptions we fall back to the class name and
+    ``str(exc)`` — these are subnet-internal errors whose messages we
+    author.
+    """
+    if isinstance(exc, PlatformError):
+        code = exc.code or exc.__class__.__name__
+        raw_detail = exc.detail or ""
+        clean = "".join(ch for ch in raw_detail if ord(ch) >= 0x20 or ch == "\t")
+        if len(clean) > _PERSIST_MESSAGE_CAP:
+            clean = clean[: _PERSIST_MESSAGE_CAP - 3] + "..."
+        message = clean or f"platform returned {code}"
+        return code, message
+    code = getattr(exc, "code", exc.__class__.__name__)
+    return code, str(exc)
 
 
 class RunnerError(Exception):
@@ -155,13 +188,13 @@ class ValidatorRunner:
         try:
             return self._run_cycle()
         except Exception as exc:
-            code = getattr(exc, "code", exc.__class__.__name__)
-            self._persist_failure(code=code, message=str(exc))
+            code, message = _safe_failure_summary(exc)
+            self._persist_failure(code=code, message=message)
             report_event(
                 event_type="cycle_failed",
                 state_directory=self._state_directory,
                 code=code,
-                message=str(exc),
+                message=message,
             )
             raise
 
@@ -346,6 +379,7 @@ __all__ = [
     "RunnerError",
     "SubtensorProtocol",
     "ValidatorRunner",
+    "_safe_failure_summary",
     "hotkey_fingerprint",
     "read_api_token",
 ]
