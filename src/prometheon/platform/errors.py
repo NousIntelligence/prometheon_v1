@@ -110,7 +110,12 @@ class PlatformError(Exception):
     response; :attr:`detail` is the platform's human-readable ``message``
     field; :attr:`details` is the platform's typed ``details`` payload,
     already sanitised against the privacy backstop key-pattern list at
-    construction time.
+    construction time. :attr:`wire_code` carries the exact code string the
+    platform returned — identical to :attr:`code` for catalogued classes,
+    but distinct when an additive (forward-compatibility) code falls
+    through to the generic :class:`PlatformError` base; the CLI renderer
+    reads :attr:`wire_code` so an unknown code can still display verbatim
+    and link to a tagged issue-template.
     """
 
     code: ClassVar[str] = "PLATFORM_ERROR"
@@ -122,14 +127,16 @@ class PlatformError(Exception):
         status_code: int | None = None,
         detail: str | None = None,
         details: dict[str, Any] | None = None,
+        wire_code: str | None = None,
     ) -> None:
         # Compose a clear default message if the caller passes nothing so
         # ``str(exc)`` is always useful in logs.
-        display = message or detail or f"platform returned {self.code}"
+        display = message or detail or f"platform returned {wire_code or self.code}"
         super().__init__(display)
         self.status_code = status_code
         self.detail = detail
         self.details = details
+        self.wire_code = wire_code or self.code
 
 
 # ---------------------------------------------------------------------------
@@ -474,6 +481,7 @@ def platform_error_from_response_body(
                 status_code=status_code,
                 detail=message if isinstance(message, str) else None,
                 details=_sanitise_details(details_raw if isinstance(details_raw, dict) else None),
+                wire_code=code,
             )
         if isinstance(code, str):
             # Wire returned a ``code`` whose shape we refuse to display
