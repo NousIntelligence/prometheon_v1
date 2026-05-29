@@ -33,9 +33,13 @@ from prometheon.chain.subtensor import (
 )
 from prometheon.chain.wallet import get_hotkey_keypair, load_wallet
 from prometheon.cli._common import echo_info, echo_success, read_api_token_or_exit
+from prometheon.cli.renderer import render_error
+from prometheon.identity.errors import IdentityError
 from prometheon.identity.roles import Role
 from prometheon.platform.client import BitFanClient
-from prometheon.validator.config import load_validator_config
+from prometheon.platform.errors import PlatformError
+from prometheon.security.signatures import SignatureError
+from prometheon.validator.config import ValidatorConfig, load_validator_config
 from prometheon.validator.runner import ValidatorRunner
 
 
@@ -102,8 +106,16 @@ def validator() -> None:
     default=0,
     help="Run N cycles and exit; 0 means loop until interrupted.",
 )
-def run(config_path: Path, state_directory: Path, once: bool, cycles: int) -> None:
+@click.pass_context
+def run(
+    ctx: click.Context,
+    config_path: Path,
+    state_directory: Path,
+    once: bool,
+    cycles: int,
+) -> None:
     """Start the validator runtime against the given configuration."""
+    verbose: bool = bool(ctx.obj.get("verbose", False)) if ctx.obj else False
     config = load_validator_config(config_path)
     echo_info(
         f"loaded config: network={config.chain.network.value}, "
@@ -140,16 +152,27 @@ def run(config_path: Path, state_directory: Path, once: bool, cycles: int) -> No
             capabilities=capabilities,
             state_directory=state_directory,
         )
-        _run_loop(runner, config=config, once=once, cycles=cycles)
+        _run_loop(runner, config=config, once=once, cycles=cycles, verbose=verbose)
     echo_success("validator runner exited cleanly")
 
 
-def _run_loop(runner: ValidatorRunner, *, config, once: bool, cycles: int) -> None:  # type: ignore[no-untyped-def]
+def _run_loop(
+    runner: ValidatorRunner,
+    *,
+    config: ValidatorConfig,
+    once: bool,
+    cycles: int,
+    verbose: bool,
+) -> None:
     """Drive the runner with a sleep cadence between cycles.
 
     ``--once`` and ``--cycles`` short-circuit the loop; otherwise we
     sleep ``config.scheduler.weight_submission_check_interval_minutes``
-    between cycles.
+    between cycles. Errors raised by the runner are routed through the
+    CLI renderer when they belong to the catalogued families so the
+    operator sees the same structured remediation block they would for
+    a one-shot command, prefixed with the cycle index for log
+    correlation.
     """
     iteration = 0
     interval_seconds = config.scheduler.weight_submission_check_interval_minutes * 60
@@ -162,9 +185,13 @@ def _run_loop(runner: ValidatorRunner, *, config, once: bool, cycles: int) -> No
                 f"cycle {iteration} result: status={result.plan.status}, "
                 f"submitted={result.submitted}, extrinsic={result.extrinsic_hash}"
             )
+        except (PlatformError, IdentityError, SignatureError) as exc:
+            # The runner has already persisted the failure via
+            # _safe_failure_summary; here we surface the rendered block
+            # so the operator sees the remediation inline.
+            click.echo(f"cycle {iteration} failed:", err=True)
+            click.echo(render_error(exc, verbose=verbose), err=True, nl=False)
         except Exception as exc:
-            # The runner has already persisted the failure; here we log
-            # at the CLI level so operators see the error inline.
             click.echo(f"cycle {iteration} failed: {exc}", err=True)
 
         if once or (cycles > 0 and iteration >= cycles):
