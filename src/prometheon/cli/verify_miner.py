@@ -50,7 +50,7 @@ from prometheon.security.signatures import sign_with_bittensor_keypair
 @click.option(
     "--platform-base-url",
     required=True,
-    help="BitFan platform base URL (e.g. https://api.bitfan.example).",
+    help="BitFan platform base URL (e.g. https://subnet-api.bitfan.ai).",
 )
 @click.option(
     "--platform-instance-id",
