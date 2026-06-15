@@ -36,7 +36,7 @@ prometheon verify-validator \
     --email                <bitfan_email> \
     --wallet-name          <coldkey_directory_name> \
     --wallet-hotkey        <hotkey_file_name> \
-    --platform-base-url    https://api.bitfan.example \
+    --platform-base-url    https://subnet-api.bitfan.ai \
     --platform-instance-id bitfan-production \
     --chain-network        finney \
     --netuid               <netuid>
@@ -68,7 +68,7 @@ name = "validator"
 hotkey = "default"
 
 [platform]
-base_url = "https://api.bitfan.example"
+base_url = "https://subnet-api.bitfan.ai"
 platform_instance_id = "bitfan-production"
 api_token_env = "PROMETHEON_VALIDATOR_API_TOKEN"
 

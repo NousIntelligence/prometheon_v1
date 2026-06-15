@@ -36,7 +36,7 @@ name = "<your wallet name>"
 hotkey = "<your hotkey name>"
 
 [platform]
-base_url = "https://bitfan-production.up.railway.app"
+base_url = "https://subnet-api.bitfan.ai"
 platform_instance_id = "bitfan-staging"
 api_token_env = "PROMETHEON_VALIDATOR_API_TOKEN"
 
@@ -61,7 +61,7 @@ export PROMETHEON_VALIDATOR_API_TOKEN="<staging_token>"
 uv run prometheon verify-validator \
     --username <user> --email <email> \
     --wallet-name <wallet> --wallet-hotkey <hotkey> \
-    --platform-base-url https://bitfan-production.up.railway.app \
+    --platform-base-url https://subnet-api.bitfan.ai \
     --platform-instance-id bitfan-staging \
     --chain-network test \
     --netuid 481

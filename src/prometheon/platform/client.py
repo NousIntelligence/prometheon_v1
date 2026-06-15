@@ -71,7 +71,7 @@ class BitFanClient:
     Parameters
     ----------
     base_url:
-        Platform API root, for example ``"https://api.bitfan.example"``.
+        Platform API root, for example ``"https://subnet-api.bitfan.ai"``.
     api_token:
         Raw API token; sent verbatim in ``Authorization: Bearer``. The hash
         of the token is bound to every signed request payload.
