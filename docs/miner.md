@@ -56,7 +56,7 @@ prometheon verify-miner \
     --email              <bitfan_email> \
     --wallet-name        <coldkey_directory_name> \
     --wallet-hotkey      <hotkey_file_name> \
-    --platform-base-url  https://api.bitfan.example \
+    --platform-base-url  https://subnet-api.bitfan.ai \
     --platform-instance-id bitfan-production \
     --chain-network      finney \
     --netuid             <netuid>

@@ -33,7 +33,7 @@ prometheon rotate-hotkey \
     --wallet-name    <coldkey_directory_name> \
     --old-hotkey-name <old_hotkey_file> \
     --new-hotkey-name <new_hotkey_file> \
-    --platform-base-url    https://api.bitfan.example \
+    --platform-base-url    https://subnet-api.bitfan.ai \
     --platform-instance-id bitfan-production \
     --chain-network        finney \
     --netuid               <netuid>
