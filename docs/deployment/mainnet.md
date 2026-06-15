@@ -35,7 +35,7 @@ fail_on_weights_version_mismatch = true   # leave as true
 allow_legacy_sdk_without_mechid = false   # leave as false; this is local-only
 
 [platform]
-base_url = "https://api.bitfan.example"
+base_url = "https://subnet-api.bitfan.ai"
 platform_instance_id = "bitfan-production"
 api_token_env = "PROMETHEON_VALIDATOR_API_TOKEN"
 

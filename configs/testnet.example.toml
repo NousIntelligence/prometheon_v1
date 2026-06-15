@@ -23,7 +23,7 @@ name = "validator"
 hotkey = "default"
 
 [platform]
-base_url = "https://bitfan-production.up.railway.app"
+base_url = "https://subnet-api.bitfan.ai"
 platform_instance_id = "bitfan-staging"
 api_token_env = "PROMETHEON_VALIDATOR_API_TOKEN"
 request_timeout_seconds = 30

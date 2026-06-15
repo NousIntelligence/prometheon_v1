@@ -145,7 +145,7 @@ uv run prometheon verify-miner \
   --email <bitfan_email> \
   --wallet-name <wallet> \
   --wallet-hotkey <hotkey> \
-  --platform-base-url https://bitfan-production.up.railway.app \
+  --platform-base-url https://subnet-api.bitfan.ai \
   --platform-instance-id bitfan-staging \
   --chain-network test \
   --netuid 481
@@ -172,7 +172,7 @@ uv run prometheon verify-validator \
   --email <bitfan_email> \
   --wallet-name <wallet> \
   --wallet-hotkey <hotkey> \
-  --platform-base-url https://bitfan-production.up.railway.app \
+  --platform-base-url https://subnet-api.bitfan.ai \
   --platform-instance-id bitfan-staging \
   --chain-network test \
   --netuid 481
