@@ -43,7 +43,7 @@ authors = [
 dependencies = [
     "bittensor==10.3.2",
     "rfc8785==0.1.4",
-    "cryptography>=46.0.7,<47",
+    "cryptography>=48.0.1,<49",
     "pydantic>=2.6,<3",
     "httpx>=0.27,<1",
     "click>=8.1,<9",
