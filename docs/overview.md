@@ -53,6 +53,12 @@ Every component has a clear responsibility:
 - **Validators** transform a signed snapshot into an on-chain weight vector — deterministically, with no subjective scoring.
 - **The Bittensor chain** processes the submitted weights through Yuma consensus and emits.
 
+### Subnet-side preconditions
+
+Phase 1 operates against a subnet using **plain `set_weights`** submission only. The commit-reveal weight-submission scheme is deliberately out of scope for this phase.
+
+Concretely, this means the target netuid must have the chain hyperparameter `commit_reveal_weights_enabled = False`. The validator's pre-submission policy gate reads this from `subtensor.get_subnet_hyperparameters(netuid)` and fails closed with `chain.commit_reveal_enabled` when the subnet is in commit-reveal mode — see [`docs/validator.md` § Troubleshooting](./validator.md#troubleshooting) for the subnet-owner's one-shot resolution.
+
 ---
 
 ## What This Repository Contains
