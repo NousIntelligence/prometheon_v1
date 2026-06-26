@@ -132,32 +132,75 @@ def sync_metagraph_view(subtensor: Any, *, netuid: int) -> MetagraphView:
 def read_hyperparameters(subtensor: Any, *, netuid: int) -> ChainHyperparameters:
     """Read the Phase-1-relevant subnet hyperparameters from the chain.
 
-    The validator runtime calls this immediately before submission so the
-    pre-submission policy gate uses fresh values.
+    Both values come from a single ``get_subnet_hyperparameters(netuid)``
+    call — present on bittensor 10.3.x and 10.5.x with identical field
+    names (``commit_reveal_weights_enabled``, ``weights_version``).
+    Earlier revisions of this function called two separate convenience
+    accessors (``get_commit_reveal_weights_enabled`` and
+    ``weights_version``) that do not exist on
+    :class:`bittensor.Subtensor`; the ``except AttributeError`` fallbacks
+    masked the bug and silently defaulted to ``commit_reveal_enabled=False``
+    / ``weights_version=0``. That caused the validator's pre-submission
+    policy gate to fail open: it never noticed when a subnet owner
+    enabled commit-reveal, the SDK silently routed ``set_weights`` into
+    the commit-reveal extrinsic, and commits piled up unrevealed until
+    the chain rejected with ``TooManyUnrevealedCommits``.
+
+    Now we read both fields from one typed accessor and fail loud — no
+    ``except AttributeError`` fallback — so a future SDK shape change
+    surfaces in tests and at startup, not silently in production.
+
+    The validator runtime calls this immediately before submission so
+    the policy gate uses fresh values.
     """
     try:
-        commit_reveal_enabled = bool(subtensor.get_commit_reveal_weights_enabled(netuid=netuid))
-    except AttributeError:
-        # Older SDKs without this getter — assume not enabled. The
-        # adapter will still detect a runtime error if submission fails.
-        commit_reveal_enabled = False
+        hyperparams = subtensor.get_subnet_hyperparameters(netuid=netuid)
     except Exception as exc:
-        raise SubtensorError(f"could not read commit_reveal_weights_enabled: {exc}") from exc
+        raise SubtensorError(
+            f"could not read subnet hyperparameters for netuid={netuid}: {exc}"
+        ) from exc
 
-    try:
-        weights_version = int(subtensor.weights_version(netuid=netuid))
-    except (AttributeError, TypeError):
-        # If the SDK does not surface a typed accessor, fall back to a
-        # safe default of 0; the runner's fail-on-version-mismatch flag
-        # determines whether this triggers a hard error.
-        weights_version = 0
-    except Exception as exc:
-        raise SubtensorError(f"could not read weights_version: {exc}") from exc
+    if hyperparams is None:
+        raise SubtensorError(
+            f"subtensor returned no hyperparameters for netuid={netuid} "
+            "(subnet may not exist on this network)"
+        )
+
+    # ``hyperparams`` is duck-typed (SDK ``Any``), so the field values
+    # come back as ``Any``; annotating these explicitly keeps the
+    # downstream ``int(...)`` / ``bool(...)`` coercions strict-mypy clean.
+    commit_reveal_value: Any = getattr(hyperparams, "commit_reveal_weights_enabled", _MISSING)
+    if commit_reveal_value is _MISSING:
+        raise SubtensorError(
+            "SubnetHyperparameters is missing 'commit_reveal_weights_enabled'; "
+            "the installed bittensor SDK is incompatible with this Phase 1 build"
+        )
+
+    weights_version_value: Any = getattr(hyperparams, "weights_version", _MISSING)
+    if weights_version_value is _MISSING:
+        raise SubtensorError(
+            "SubnetHyperparameters is missing 'weights_version'; "
+            "the installed bittensor SDK is incompatible with this Phase 1 build"
+        )
+
+    # ``weights_version`` is typed ``Optional[int]`` on SubnetHyperparameters;
+    # the chain returns None when the subnet has never set a version. The
+    # policy gate then compares against the operator-configured version_key,
+    # which can never be None — so we collapse None to 0 explicitly (the
+    # documented default) rather than letting it propagate.
+    weights_version = int(weights_version_value) if weights_version_value is not None else 0
 
     return ChainHyperparameters(
         weights_version=weights_version,
-        commit_reveal_enabled=commit_reveal_enabled,
+        commit_reveal_enabled=bool(commit_reveal_value),
     )
+
+
+# Sentinel used by read_hyperparameters to distinguish "field absent from
+# the SubnetHyperparameters dataclass" from "field present but None". A
+# truly absent field is a sign the installed SDK has drifted; a None
+# value is normal (and means "subnet has not set this hyperparameter").
+_MISSING: object = object()
 
 
 def submit_set_weights(
