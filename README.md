@@ -111,6 +111,7 @@ Before either the miner or validator quick-start works, you need:
 - [ ] A **Bittensor wallet** created via `btcli` (coldkey + at least one hotkey).
 - [ ] The hotkey **registered on the target netuid** (`btcli subnet register`).
 - [ ] For validators only: a **chain-issued validator permit** on that netuid (the chain grants this after enough stake; check via `btcli wallet overview`).
+- [ ] The target subnet must be operating in **plain `set_weights` mode** — i.e. the `commit_reveal_weights_enabled` hyperparameter on that netuid must be `False`. Phase 1 deliberately does not implement the commit-reveal weight submission scheme; if the subnet owner enables it, the runtime fails closed with `chain.commit_reveal_enabled`. See [`docs/validator.md` § Troubleshooting](./docs/validator.md#troubleshooting) for the operator-side fix.
 
 The platform-side values you will need (URL, `platform_instance_id`, signing key, burn hotkey) are all pre-filled for testnet 481 in [`configs/testnet.example.toml`](./configs/testnet.example.toml) — you do not need to obtain them separately.
 
