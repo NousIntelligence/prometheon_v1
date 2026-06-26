@@ -218,13 +218,46 @@ These are not platform errors; they are conditions the validator refuses to star
 
 | Code | Cause | Resolution |
 |---|---|---|
-| `chain.commit_reveal_enabled` | The subnet has commit-reveal turned on at the chain level. Phase 1 does not support commit-reveal. | Wait until the subnet owner disables commit-reveal, or contact them. The validator refuses to submit until then. |
+| `chain.commit_reveal_enabled` | The subnet has commit-reveal turned on at the chain level. Phase 1 does not support commit-reveal. | If you do not own the subnet, wait until the subnet owner disables commit-reveal, or contact them. The validator refuses to submit until then. If you **do** own the subnet, see [Subnet-owner resolution](#subnet-owner-resolution-disable-commit-reveal) below. |
 | `chain.weights_version_mismatch` | The configured `[chain] version_key` differs from the chain's `weights_version` hyperparameter. | Update `version_key` in the config to the value the subnet owner has currently set. |
 | `chain.mechid_missing` | The installed `bittensor` SDK lacks `mechid` support and the config does not enable the legacy override. | Upgrade the `bittensor` package. The legacy override (`allow_legacy_sdk_without_mechid = true`) is only acceptable on `local`. |
 | `chain.set_weights_failed` | The chain rejected the `set_weights` extrinsic — see the `--verbose` trailer for the underlying SDK error. | Inspect the trailer's `ExtrinsicResponse` diagnostic fields and act on the specific cause (insufficient stake, version key drift, permit revocation, etc.). |
 | `NO_VALID_WEIGHT_TARGET` | Engine returned `status=no_valid_weight_target` (Case D — no qualifying miner). | Expected and self-resolves when at least one eligible miner reappears in a subsequent snapshot. The cycle is **not** a failure; it is a deliberate no-op. |
 
 For the full catalog (binding-ledger, snapshot storage, the five signature primitives, the typed-details payloads) see [`security.md` § Failure Code Catalog](./security.md#failure-code-catalog).
+
+### Subnet-owner resolution — disable commit-reveal
+
+This is the operational fix for `chain.commit_reveal_enabled` when **you hold the subnet-owner / sudo coldkey** for the affected netuid. Tracked in [#68](https://github.com/NousIntelligence/prometheon_v1/issues/68) as the chosen path for the live-incident response.
+
+Run this with the subnet-owner coldkey wallet on the right network (the example below targets testnet 481):
+
+```bash
+btcli sudo set \
+    --netuid 481 \
+    --param commit_reveal_weights_enabled \
+    --value False \
+    --network test \
+    --wallet-name <subnet_owner_coldkey_wallet_name>
+```
+
+Recommended order of operations:
+
+1. Stop the running validators against this netuid first. They are not making forward progress while commit-reveal is on, and you do not want them attempting `set_weights` during the hyperparameter-change finalisation window.
+2. Confirm the wallet you are about to unlock is the subnet owner:
+   ```bash
+   btcli subnets info --netuid <N> --network <net>
+   ```
+   The output prints the subnet-owner SS58. Match it against `btcli wallet overview --wallet.name <wallet>`.
+3. Execute the sudo call. `btcli` prompts for the coldkey passphrase and prints the extrinsic finalisation message.
+4. Verify the on-chain value before restarting anything:
+   ```bash
+   btcli sudo get --netuid <N> --network <net> | grep commit_reveal_weights_enabled
+   ```
+   Expect `False`.
+5. Restart validators. The first `cycle_submitted` event in `events.ndjson` confirms the runtime resumed normal `set_weights` submissions.
+
+The validator's `read_hyperparameters` reads `commit_reveal_weights_enabled` from `subtensor.get_subnet_hyperparameters(netuid)` on every cycle. Even if step 3 did not take, step 4 catches it before any cycle runs, and the runtime still fails closed cleanly if commit-reveal flips back on at any point in the future.
 
 ---
 
