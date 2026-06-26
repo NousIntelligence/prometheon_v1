@@ -41,7 +41,7 @@ authors = [
 # wire and canonicalization behaviour is part of the cross-implementation
 # contract; everything else uses conservative compatible ranges.
 dependencies = [
-    "bittensor==10.3.2",
+    "bittensor==10.5.0",
     "rfc8785==0.1.4",
     "cryptography>=48.0.1,<49",
     "pydantic>=2.6,<3",
