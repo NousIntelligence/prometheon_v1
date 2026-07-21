@@ -186,3 +186,35 @@ class TestAggregation:
         groups, bindings = self._fixture()
         result = aggregate_miner_scores({(USER, "2026-07-01"): -5}, groups, bindings)
         assert result.miner_scores == {HOTKEY: 0}
+
+
+class TestRoleIsolation:
+    def test_validator_bind_never_steals_miner_attribution(self) -> None:
+        # A leader holding BOTH roles: the miner hotkey is bound first, a
+        # validator hotkey later. Attribution must keep the miner hotkey —
+        # a validator bind is a different role lane entirely.
+        bindings = _bindings(
+            _bind(LEADER, HOTKEY, "2026-06-01T00:00:00Z"),
+            {
+                "user_ref_evt": LEADER,
+                "core": {
+                    "kind": "validator_hotkey_bind",
+                    "hotkey_ss58": HOTKEY_B,
+                    "bound_at": "2026-06-10T00:00:00Z",
+                },
+            },
+        )
+        assert bindings.binding_at_day_start(LEADER, "2026-06-15") == HOTKEY
+
+    def test_validator_unbind_does_not_clear_miner_binding(self) -> None:
+        bindings = _bindings(
+            _bind(LEADER, HOTKEY, "2026-06-01T00:00:00Z"),
+            {
+                "user_ref_evt": LEADER,
+                "core": {
+                    "kind": "validator_hotkey_unbind",
+                    "unbound_at": "2026-06-10T00:00:00Z",
+                },
+            },
+        )
+        assert bindings.binding_at_day_start(LEADER, "2026-06-15") == HOTKEY
