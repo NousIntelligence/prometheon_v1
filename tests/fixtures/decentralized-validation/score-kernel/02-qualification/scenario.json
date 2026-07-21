@@ -1,0 +1,1051 @@
+{
+  "device_key_events": [
+    {
+      "kind": "device_key_register",
+      "user_ref_evt": "usr_evt_qual_a",
+      "public_key": "0x04417fbcc9d87dae9199fb675e8d8fdc5bbc5fc4607e50c299ff2cc4806ca94d527733f22640e86d365eb915fa1a0e33f77d8d2fa76087236ef1cac4e773a2671d",
+      "epoch_id": "2026-07-01"
+    },
+    {
+      "kind": "device_key_revoke",
+      "user_ref_evt": "usr_evt_qual_a",
+      "public_key": "0x04417fbcc9d87dae9199fb675e8d8fdc5bbc5fc4607e50c299ff2cc4806ca94d527733f22640e86d365eb915fa1a0e33f77d8d2fa76087236ef1cac4e773a2671d",
+      "epoch_id": "2026-07-05"
+    }
+  ],
+  "exclusion_weights": [
+    {
+      "user_ref_evt": "usr_evt_qual_b",
+      "applies_to_epoch": "2026-07-06",
+      "weight_bp": 2500
+    }
+  ],
+  "records": [
+    {
+      "seq": 1,
+      "epoch_id": "2026-07-01",
+      "kind": "service_detail_view",
+      "user_ref_evt": "usr_evt_qual_a",
+      "received_ts": "2026-07-01T10:00:00Z",
+      "category_id": null,
+      "target": {
+        "service_id": "svc-1"
+      },
+      "scoring_fields": {
+        "dwell_seconds": 11,
+        "scroll_percent": 59,
+        "outbound_clicks": 0
+      },
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "seq": 2,
+      "epoch_id": "2026-07-01",
+      "kind": "service_detail_view",
+      "user_ref_evt": "usr_evt_qual_a",
+      "received_ts": "2026-07-01T10:01:00Z",
+      "category_id": "cat-1",
+      "target": {
+        "service_id": "svc-1"
+      },
+      "scoring_fields": {
+        "dwell_seconds": 20,
+        "scroll_percent": 0,
+        "outbound_clicks": 0
+      },
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "seq": 3,
+      "epoch_id": "2026-07-01",
+      "kind": "service_detail_view",
+      "user_ref_evt": "usr_evt_qual_a",
+      "received_ts": "2026-07-01T10:05:00Z",
+      "category_id": "cat-1",
+      "target": {
+        "service_id": "svc-2"
+      },
+      "scoring_fields": {
+        "dwell_seconds": 20,
+        "scroll_percent": 0,
+        "outbound_clicks": 0
+      },
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "seq": 4,
+      "epoch_id": "2026-07-01",
+      "kind": "category_exploration",
+      "user_ref_evt": "usr_evt_qual_a",
+      "received_ts": "2026-07-01T10:10:00Z",
+      "category_id": "cat-1",
+      "target": {
+        "service_id": "svc-2"
+      },
+      "scoring_fields": {},
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "seq": 5,
+      "epoch_id": "2026-07-01",
+      "kind": "service_detail_view",
+      "user_ref_evt": "usr_evt_qual_a",
+      "received_ts": "2026-07-01T10:15:00Z",
+      "category_id": "cat-1",
+      "target": {
+        "service_id": "svc-3"
+      },
+      "scoring_fields": {
+        "dwell_seconds": 20,
+        "scroll_percent": 0,
+        "outbound_clicks": 0
+      },
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "seq": 6,
+      "epoch_id": "2026-07-01",
+      "kind": "category_exploration",
+      "user_ref_evt": "usr_evt_qual_a",
+      "received_ts": "2026-07-01T10:20:00Z",
+      "category_id": "cat-1",
+      "target": {
+        "service_id": "svc-3"
+      },
+      "scoring_fields": {},
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "seq": 7,
+      "epoch_id": "2026-07-01",
+      "kind": "service_detail_view",
+      "user_ref_evt": "usr_evt_qual_a",
+      "received_ts": "2026-07-01T10:30:00Z",
+      "category_id": null,
+      "target": {
+        "service_id": "svc-4"
+      },
+      "scoring_fields": {
+        "dwell_seconds": 20,
+        "scroll_percent": 0,
+        "outbound_clicks": 0
+      },
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "seq": 8,
+      "epoch_id": "2026-07-01",
+      "kind": "service_detail_view",
+      "user_ref_evt": "usr_evt_qual_a",
+      "received_ts": "2026-07-01T10:35:00Z",
+      "category_id": null,
+      "target": {
+        "service_id": "svc-5"
+      },
+      "scoring_fields": {
+        "dwell_seconds": 20,
+        "scroll_percent": 0,
+        "outbound_clicks": 0
+      },
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "seq": 9,
+      "epoch_id": "2026-07-01",
+      "kind": "service_detail_view",
+      "user_ref_evt": "usr_evt_qual_a",
+      "received_ts": "2026-07-01T12:00:00Z",
+      "category_id": null,
+      "target": {
+        "service_id": "svc-1"
+      },
+      "scoring_fields": {
+        "dwell_seconds": 20,
+        "scroll_percent": 0,
+        "outbound_clicks": 0
+      },
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "seq": 10,
+      "epoch_id": "2026-07-01",
+      "kind": "login",
+      "user_ref_evt": "usr_evt_qual_a",
+      "received_ts": "2026-07-01T08:00:00Z",
+      "category_id": null,
+      "target": {},
+      "scoring_fields": {},
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "seq": 11,
+      "epoch_id": "2026-07-01",
+      "kind": "login",
+      "user_ref_evt": "usr_evt_qual_a",
+      "received_ts": "2026-07-01T20:00:00Z",
+      "category_id": null,
+      "target": {},
+      "scoring_fields": {},
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "seq": 12,
+      "epoch_id": "2026-07-01",
+      "kind": "service_news_click",
+      "user_ref_evt": "usr_evt_qual_a",
+      "received_ts": "2026-07-01T11:00:00Z",
+      "category_id": null,
+      "target": {
+        "service_id": "svc-1",
+        "news_item_id": "news-1"
+      },
+      "scoring_fields": {},
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "seq": 13,
+      "epoch_id": "2026-07-01",
+      "kind": "service_news_click",
+      "user_ref_evt": "usr_evt_qual_a",
+      "received_ts": "2026-07-01T11:05:00Z",
+      "category_id": null,
+      "target": {
+        "service_id": "svc-1",
+        "news_item_id": "news-1"
+      },
+      "scoring_fields": {},
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "seq": 14,
+      "epoch_id": "2026-07-01",
+      "kind": "service_news_click",
+      "user_ref_evt": "usr_evt_qual_a",
+      "received_ts": "2026-07-01T11:10:00Z",
+      "category_id": null,
+      "target": {
+        "service_id": "svc-2",
+        "news_item_id": "news-2"
+      },
+      "scoring_fields": {},
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "seq": 15,
+      "epoch_id": "2026-07-01",
+      "kind": "service_news_click",
+      "user_ref_evt": "usr_evt_qual_a",
+      "received_ts": "2026-07-01T11:15:00Z",
+      "category_id": null,
+      "target": {
+        "service_id": "svc-3",
+        "news_item_id": "news-3"
+      },
+      "scoring_fields": {},
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "seq": 16,
+      "epoch_id": "2026-07-01",
+      "kind": "watchlist_add",
+      "user_ref_evt": "usr_evt_qual_a",
+      "received_ts": "2026-07-01T13:00:00Z",
+      "category_id": null,
+      "target": {
+        "service_id": "svc-1"
+      },
+      "scoring_fields": {},
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "seq": 17,
+      "epoch_id": "2026-07-01",
+      "kind": "watchlist_add",
+      "user_ref_evt": "usr_evt_qual_a",
+      "received_ts": "2026-07-01T13:05:00Z",
+      "category_id": null,
+      "target": {
+        "service_id": "svc-1"
+      },
+      "scoring_fields": {},
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "seq": 18,
+      "epoch_id": "2026-07-01",
+      "kind": "service_follow_add",
+      "user_ref_evt": "usr_evt_qual_a",
+      "received_ts": "2026-07-01T13:10:00Z",
+      "category_id": null,
+      "target": {
+        "service_id": "svc-1"
+      },
+      "scoring_fields": {},
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "seq": 19,
+      "epoch_id": "2026-07-01",
+      "kind": "compare_session",
+      "user_ref_evt": "usr_evt_qual_a",
+      "received_ts": "2026-07-01T14:00:00Z",
+      "category_id": null,
+      "target": {
+        "service_id": "svc-1",
+        "other_service_id": "svc-2"
+      },
+      "scoring_fields": {
+        "dwell_seconds": 35
+      },
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "seq": 20,
+      "epoch_id": "2026-07-01",
+      "kind": "compare_session",
+      "user_ref_evt": "usr_evt_qual_a",
+      "received_ts": "2026-07-01T15:00:00Z",
+      "category_id": null,
+      "target": {
+        "service_id": "svc-3",
+        "other_service_id": "svc-4"
+      },
+      "scoring_fields": {
+        "dwell_seconds": 35
+      },
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "seq": 21,
+      "epoch_id": "2026-07-02",
+      "kind": "login",
+      "user_ref_evt": "usr_evt_qual_a",
+      "received_ts": "2026-07-02T08:00:00Z",
+      "category_id": null,
+      "target": {},
+      "scoring_fields": {},
+      "device_pubkey": "0x04417fbcc9d87dae9199fb675e8d8fdc5bbc5fc4607e50c299ff2cc4806ca94d527733f22640e86d365eb915fa1a0e33f77d8d2fa76087236ef1cac4e773a2671d",
+      "user_sig": "0x57c62febce480af4a362ba7684351fcd9f9afaadb936d81a19ba71e7d31eefce0240f5e75870a0626fa5691ba430a1878ec396d4de1bf6b4a6f0327d7e56086f",
+      "core": {
+        "domain": "PROMETHEON_EVENT_V1",
+        "kind": "login",
+        "target": {},
+        "scoring_fields": {},
+        "client_ts": "2026-07-02T08:00:00Z",
+        "client_nonce": "0xaaaa000000000001"
+      }
+    },
+    {
+      "seq": 22,
+      "epoch_id": "2026-07-02",
+      "kind": "login",
+      "user_ref_evt": "usr_evt_qual_a",
+      "received_ts": "2026-07-02T09:00:00Z",
+      "category_id": null,
+      "target": {},
+      "scoring_fields": {},
+      "device_pubkey": "0x04417fbcc9d87dae9199fb675e8d8fdc5bbc5fc4607e50c299ff2cc4806ca94d527733f22640e86d365eb915fa1a0e33f77d8d2fa76087236ef1cac4e773a2671d",
+      "user_sig": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "core": {
+        "domain": "PROMETHEON_EVENT_V1",
+        "kind": "login",
+        "target": {},
+        "scoring_fields": {},
+        "client_ts": "2026-07-02T08:00:00Z",
+        "client_nonce": "0xaaaa000000000001"
+      }
+    },
+    {
+      "seq": 23,
+      "epoch_id": "2026-07-02",
+      "kind": "login",
+      "user_ref_evt": "usr_evt_qual_a",
+      "received_ts": "2026-07-02T10:00:00Z",
+      "category_id": null,
+      "target": {},
+      "scoring_fields": {},
+      "device_pubkey": "0x041e6cfed7eaedb240c76a930be5c0474418136500d576b913ac91469e79365a9819beecdd3044e04ad845d193041e372fa40d202e7a3b1042de5723252cda165b",
+      "user_sig": "0x657c3f273bd3571d4789c3a6ef8f5b4ddc49f4b236442b8ef270cc178bbc612c2e1fbfac99e5f409d7712fbcc3697a2a551e9c60659c017f560c6c4164b02139",
+      "core": {
+        "domain": "PROMETHEON_EVENT_V1",
+        "kind": "login",
+        "target": {},
+        "scoring_fields": {},
+        "client_ts": "2026-07-02T08:00:00Z",
+        "client_nonce": "0xaaaa000000000002"
+      }
+    },
+    {
+      "seq": 24,
+      "epoch_id": "2026-07-02",
+      "kind": "service_detail_view",
+      "user_ref_evt": "usr_evt_qual_a",
+      "received_ts": "2026-07-02T10:00:59Z",
+      "category_id": null,
+      "target": {
+        "service_id": "svc-1"
+      },
+      "scoring_fields": {
+        "dwell_seconds": 20,
+        "scroll_percent": 0,
+        "outbound_clicks": 0
+      },
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "seq": 25,
+      "epoch_id": "2026-07-02",
+      "kind": "service_detail_view",
+      "user_ref_evt": "usr_evt_qual_a",
+      "received_ts": "2026-07-02T10:01:01Z",
+      "category_id": null,
+      "target": {
+        "service_id": "svc-1"
+      },
+      "scoring_fields": {
+        "dwell_seconds": 20,
+        "scroll_percent": 0,
+        "outbound_clicks": 0
+      },
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "seq": 26,
+      "epoch_id": "2026-07-02",
+      "kind": "demo_l1",
+      "user_ref_evt": "usr_evt_qual_a",
+      "received_ts": "2026-07-02T11:00:00Z",
+      "category_id": null,
+      "target": {
+        "service_id": "svc-1",
+        "demo_id": "demo-1"
+      },
+      "scoring_fields": {
+        "watch_permille": 849,
+        "seek_count": 1,
+        "tab_hidden_seconds": 5,
+        "watched_seconds": 100,
+        "video_duration_seconds": 120
+      },
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "seq": 27,
+      "epoch_id": "2026-07-02",
+      "kind": "demo_l1",
+      "user_ref_evt": "usr_evt_qual_a",
+      "received_ts": "2026-07-02T11:05:00Z",
+      "category_id": null,
+      "target": {
+        "service_id": "svc-1",
+        "demo_id": "demo-1"
+      },
+      "scoring_fields": {
+        "watch_permille": 850,
+        "seek_count": 1,
+        "tab_hidden_seconds": 5,
+        "watched_seconds": 100,
+        "video_duration_seconds": 120
+      },
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "seq": 28,
+      "epoch_id": "2026-07-02",
+      "kind": "demo_l1",
+      "user_ref_evt": "usr_evt_qual_a",
+      "received_ts": "2026-07-02T11:10:00Z",
+      "category_id": null,
+      "target": {
+        "service_id": "svc-2",
+        "demo_id": "demo-2"
+      },
+      "scoring_fields": {
+        "watch_permille": 900,
+        "seek_count": 1,
+        "tab_hidden_seconds": 20,
+        "watched_seconds": 100,
+        "video_duration_seconds": 120
+      },
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "seq": 29,
+      "epoch_id": "2026-07-02",
+      "kind": "demo_l2",
+      "user_ref_evt": "usr_evt_qual_a",
+      "received_ts": "2026-07-02T11:15:00Z",
+      "category_id": null,
+      "target": {
+        "service_id": "svc-2",
+        "demo_id": "demo-3"
+      },
+      "scoring_fields": {},
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "seq": 30,
+      "epoch_id": "2026-07-02",
+      "kind": "demo_l2",
+      "user_ref_evt": "usr_evt_qual_a",
+      "received_ts": "2026-07-02T11:20:00Z",
+      "category_id": null,
+      "target": {
+        "service_id": "svc-3",
+        "demo_id": "demo-4"
+      },
+      "scoring_fields": {},
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "seq": 31,
+      "epoch_id": "2026-07-02",
+      "kind": "demo_l2",
+      "user_ref_evt": "usr_evt_qual_a",
+      "received_ts": "2026-07-02T11:25:00Z",
+      "category_id": null,
+      "target": {
+        "service_id": "svc-2",
+        "demo_id": "demo-3"
+      },
+      "scoring_fields": {},
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "seq": 32,
+      "epoch_id": "2026-07-06",
+      "kind": "login",
+      "user_ref_evt": "usr_evt_qual_a",
+      "received_ts": "2026-07-06T08:00:00Z",
+      "category_id": null,
+      "target": {},
+      "scoring_fields": {},
+      "device_pubkey": "0x04417fbcc9d87dae9199fb675e8d8fdc5bbc5fc4607e50c299ff2cc4806ca94d527733f22640e86d365eb915fa1a0e33f77d8d2fa76087236ef1cac4e773a2671d",
+      "user_sig": "0x8c8a37f5810f16a43273e12ffebe298e94dc4a27459f65895ccb91bdc278b6f61e684aaa12d6831995b52f71140349fc3f0b2b5e2fcad3463c631b4de7ed2971",
+      "core": {
+        "domain": "PROMETHEON_EVENT_V1",
+        "kind": "login",
+        "target": {},
+        "scoring_fields": {},
+        "client_ts": "2026-07-02T08:00:00Z",
+        "client_nonce": "0xaaaa000000000003"
+      }
+    },
+    {
+      "seq": 33,
+      "epoch_id": "2026-07-03",
+      "kind": "service_detail_view",
+      "user_ref_evt": "usr_evt_qual_b",
+      "received_ts": "2026-07-03T09:00:00Z",
+      "category_id": null,
+      "target": {
+        "service_id": "svc-10"
+      },
+      "scoring_fields": {
+        "dwell_seconds": 20,
+        "scroll_percent": 0,
+        "outbound_clicks": 0
+      },
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "seq": 34,
+      "epoch_id": "2026-07-03",
+      "kind": "service_detail_view",
+      "user_ref_evt": "usr_evt_qual_b",
+      "received_ts": "2026-07-03T09:30:00Z",
+      "category_id": null,
+      "target": {
+        "service_id": "svc-11"
+      },
+      "scoring_fields": {
+        "dwell_seconds": 20,
+        "scroll_percent": 0,
+        "outbound_clicks": 0
+      },
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "seq": 35,
+      "epoch_id": "2026-07-04",
+      "kind": "service_detail_view",
+      "user_ref_evt": "usr_evt_qual_b",
+      "received_ts": "2026-07-04T09:01:00Z",
+      "category_id": null,
+      "target": {
+        "service_id": "svc-10"
+      },
+      "scoring_fields": {
+        "dwell_seconds": 20,
+        "scroll_percent": 0,
+        "outbound_clicks": 0
+      },
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "seq": 36,
+      "epoch_id": "2026-07-04",
+      "kind": "service_detail_view",
+      "user_ref_evt": "usr_evt_qual_b",
+      "received_ts": "2026-07-04T09:31:00Z",
+      "category_id": null,
+      "target": {
+        "service_id": "svc-11"
+      },
+      "scoring_fields": {
+        "dwell_seconds": 20,
+        "scroll_percent": 0,
+        "outbound_clicks": 0
+      },
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "seq": 37,
+      "epoch_id": "2026-07-05",
+      "kind": "service_detail_view",
+      "user_ref_evt": "usr_evt_qual_b",
+      "received_ts": "2026-07-05T09:02:00Z",
+      "category_id": null,
+      "target": {
+        "service_id": "svc-10"
+      },
+      "scoring_fields": {
+        "dwell_seconds": 20,
+        "scroll_percent": 0,
+        "outbound_clicks": 0
+      },
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "seq": 38,
+      "epoch_id": "2026-07-05",
+      "kind": "service_detail_view",
+      "user_ref_evt": "usr_evt_qual_b",
+      "received_ts": "2026-07-05T09:32:00Z",
+      "category_id": null,
+      "target": {
+        "service_id": "svc-11"
+      },
+      "scoring_fields": {
+        "dwell_seconds": 20,
+        "scroll_percent": 0,
+        "outbound_clicks": 0
+      },
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "seq": 39,
+      "epoch_id": "2026-07-06",
+      "kind": "service_detail_view",
+      "user_ref_evt": "usr_evt_qual_b",
+      "received_ts": "2026-07-06T09:03:00Z",
+      "category_id": null,
+      "target": {
+        "service_id": "svc-10"
+      },
+      "scoring_fields": {
+        "dwell_seconds": 20,
+        "scroll_percent": 0,
+        "outbound_clicks": 0
+      },
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "seq": 40,
+      "epoch_id": "2026-07-06",
+      "kind": "service_detail_view",
+      "user_ref_evt": "usr_evt_qual_b",
+      "received_ts": "2026-07-06T09:33:00Z",
+      "category_id": null,
+      "target": {
+        "service_id": "svc-11"
+      },
+      "scoring_fields": {
+        "dwell_seconds": 20,
+        "scroll_percent": 0,
+        "outbound_clicks": 0
+      },
+      "device_pubkey": null,
+      "user_sig": null
+    }
+  ],
+  "expected": {
+    "verdicts": [
+      {
+        "seq": 1,
+        "kind": "service_detail_view",
+        "signature_status": "unsigned",
+        "status": "rejected",
+        "points": 0
+      },
+      {
+        "seq": 2,
+        "kind": "service_detail_view",
+        "signature_status": "unsigned",
+        "status": "counted",
+        "points": 2
+      },
+      {
+        "seq": 3,
+        "kind": "service_detail_view",
+        "signature_status": "unsigned",
+        "status": "counted",
+        "points": 2
+      },
+      {
+        "seq": 4,
+        "kind": "category_exploration",
+        "signature_status": "unsigned",
+        "status": "rejected",
+        "points": 0
+      },
+      {
+        "seq": 5,
+        "kind": "service_detail_view",
+        "signature_status": "unsigned",
+        "status": "counted",
+        "points": 2
+      },
+      {
+        "seq": 6,
+        "kind": "category_exploration",
+        "signature_status": "unsigned",
+        "status": "counted",
+        "points": 1
+      },
+      {
+        "seq": 7,
+        "kind": "service_detail_view",
+        "signature_status": "unsigned",
+        "status": "counted",
+        "points": 2
+      },
+      {
+        "seq": 8,
+        "kind": "service_detail_view",
+        "signature_status": "unsigned",
+        "status": "rejected",
+        "points": 0
+      },
+      {
+        "seq": 9,
+        "kind": "service_detail_view",
+        "signature_status": "unsigned",
+        "status": "rejected",
+        "points": 0
+      },
+      {
+        "seq": 10,
+        "kind": "login",
+        "signature_status": "unsigned",
+        "status": "counted",
+        "points": 1
+      },
+      {
+        "seq": 11,
+        "kind": "login",
+        "signature_status": "unsigned",
+        "status": "rejected",
+        "points": 0
+      },
+      {
+        "seq": 12,
+        "kind": "service_news_click",
+        "signature_status": "unsigned",
+        "status": "counted",
+        "points": 2
+      },
+      {
+        "seq": 13,
+        "kind": "service_news_click",
+        "signature_status": "unsigned",
+        "status": "rejected",
+        "points": 0
+      },
+      {
+        "seq": 14,
+        "kind": "service_news_click",
+        "signature_status": "unsigned",
+        "status": "counted",
+        "points": 2
+      },
+      {
+        "seq": 15,
+        "kind": "service_news_click",
+        "signature_status": "unsigned",
+        "status": "rejected",
+        "points": 0
+      },
+      {
+        "seq": 16,
+        "kind": "watchlist_add",
+        "signature_status": "unsigned",
+        "status": "counted",
+        "points": 3
+      },
+      {
+        "seq": 17,
+        "kind": "watchlist_add",
+        "signature_status": "unsigned",
+        "status": "rejected",
+        "points": 0
+      },
+      {
+        "seq": 18,
+        "kind": "service_follow_add",
+        "signature_status": "unsigned",
+        "status": "counted",
+        "points": 2
+      },
+      {
+        "seq": 19,
+        "kind": "compare_session",
+        "signature_status": "unsigned",
+        "status": "counted",
+        "points": 4
+      },
+      {
+        "seq": 20,
+        "kind": "compare_session",
+        "signature_status": "unsigned",
+        "status": "rejected",
+        "points": 0
+      },
+      {
+        "seq": 21,
+        "kind": "login",
+        "signature_status": "verified",
+        "status": "counted",
+        "points": 1
+      },
+      {
+        "seq": 22,
+        "kind": "login",
+        "signature_status": "invalid",
+        "status": "excluded_signature",
+        "points": 0
+      },
+      {
+        "seq": 23,
+        "kind": "login",
+        "signature_status": "unregistered",
+        "status": "excluded_signature",
+        "points": 0
+      },
+      {
+        "seq": 24,
+        "kind": "service_detail_view",
+        "signature_status": "unsigned",
+        "status": "rejected",
+        "points": 0
+      },
+      {
+        "seq": 25,
+        "kind": "service_detail_view",
+        "signature_status": "unsigned",
+        "status": "counted",
+        "points": 2
+      },
+      {
+        "seq": 26,
+        "kind": "demo_l1",
+        "signature_status": "unsigned",
+        "status": "rejected",
+        "points": 0
+      },
+      {
+        "seq": 27,
+        "kind": "demo_l1",
+        "signature_status": "unsigned",
+        "status": "counted",
+        "points": 2
+      },
+      {
+        "seq": 28,
+        "kind": "demo_l1",
+        "signature_status": "unsigned",
+        "status": "rejected",
+        "points": 0
+      },
+      {
+        "seq": 29,
+        "kind": "demo_l2",
+        "signature_status": "unsigned",
+        "status": "counted",
+        "points": 4
+      },
+      {
+        "seq": 30,
+        "kind": "demo_l2",
+        "signature_status": "unsigned",
+        "status": "rejected",
+        "points": 0
+      },
+      {
+        "seq": 31,
+        "kind": "demo_l2",
+        "signature_status": "unsigned",
+        "status": "rejected",
+        "points": 0
+      },
+      {
+        "seq": 32,
+        "kind": "login",
+        "signature_status": "unregistered",
+        "status": "excluded_signature",
+        "points": 0
+      },
+      {
+        "seq": 33,
+        "kind": "service_detail_view",
+        "signature_status": "unsigned",
+        "status": "counted",
+        "points": 2
+      },
+      {
+        "seq": 34,
+        "kind": "service_detail_view",
+        "signature_status": "unsigned",
+        "status": "counted",
+        "points": 2
+      },
+      {
+        "seq": 35,
+        "kind": "service_detail_view",
+        "signature_status": "unsigned",
+        "status": "counted",
+        "points": 2
+      },
+      {
+        "seq": 36,
+        "kind": "service_detail_view",
+        "signature_status": "unsigned",
+        "status": "counted",
+        "points": 2
+      },
+      {
+        "seq": 37,
+        "kind": "service_detail_view",
+        "signature_status": "unsigned",
+        "status": "counted",
+        "points": 2
+      },
+      {
+        "seq": 38,
+        "kind": "service_detail_view",
+        "signature_status": "unsigned",
+        "status": "counted",
+        "points": 2
+      },
+      {
+        "seq": 39,
+        "kind": "service_detail_view",
+        "signature_status": "unsigned",
+        "status": "counted",
+        "points": 2
+      },
+      {
+        "seq": 40,
+        "kind": "service_detail_view",
+        "signature_status": "unsigned",
+        "status": "counted",
+        "points": 2
+      }
+    ],
+    "days": [
+      {
+        "user_ref_evt": "usr_evt_qual_a",
+        "days": [
+          {
+            "epoch_id": "2026-07-01",
+            "raw": 20,
+            "active": true,
+            "streak_bonus": 0,
+            "weight_bp": 10000,
+            "daily_score": 20
+          },
+          {
+            "epoch_id": "2026-07-02",
+            "raw": 9,
+            "active": true,
+            "streak_bonus": 0,
+            "weight_bp": 10000,
+            "daily_score": 9
+          }
+        ]
+      },
+      {
+        "user_ref_evt": "usr_evt_qual_b",
+        "days": [
+          {
+            "epoch_id": "2026-07-03",
+            "raw": 4,
+            "active": true,
+            "streak_bonus": 0,
+            "weight_bp": 10000,
+            "daily_score": 4
+          },
+          {
+            "epoch_id": "2026-07-04",
+            "raw": 4,
+            "active": true,
+            "streak_bonus": 0,
+            "weight_bp": 10000,
+            "daily_score": 4
+          },
+          {
+            "epoch_id": "2026-07-05",
+            "raw": 4,
+            "active": true,
+            "streak_bonus": 1,
+            "weight_bp": 10000,
+            "daily_score": 5
+          },
+          {
+            "epoch_id": "2026-07-06",
+            "raw": 4,
+            "active": true,
+            "streak_bonus": 1,
+            "weight_bp": 2500,
+            "daily_score": 1
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,1 @@
+{"meta":{"flags":{"enabled":true,"mode":"strict"},"ids":["a","b","c"],"version":1},"payload":{"items":[{"k":"first","n":1},{"k":"second","n":2}]}}

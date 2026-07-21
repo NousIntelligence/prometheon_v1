@@ -1,0 +1,8 @@
+{
+  "purpose": "Bittensor validator hotkey. TEST KEY ONLY.",
+  "seed_label": "PROMETHEON-PHASE1-TEST-VALIDATOR-SR25519-2026-05",
+  "seed_hex": "0x494b6e0ee7ff11a2ee7aced1687f65a64bedacb5f9ce0c3eb79b54f9b066e204",
+  "public_key_hex": "0xd4640e5bf47c4d30823b3012e833c013d2a31d8fd6127334ae71702f8ff4df6a",
+  "secret_key_hex": "0xe8d76e627b4b3422490983f2909854a357395057d04f48a47e29e3f54aa2a54b8511c8ae2ffaefa61b1d17eff613b9c97a5d8e80e14f8c94a2d3da63b4f6725d",
+  "ss58": "5GsBjPJh6y2NFmJYJ1ti93buusQhxhYGyNBcwbUVpXRLqe8P"
+}

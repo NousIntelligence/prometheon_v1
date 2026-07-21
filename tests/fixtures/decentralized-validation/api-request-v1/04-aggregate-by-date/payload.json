@@ -1,0 +1,16 @@
+{
+  "domain": "PROMETHEON_API_REQUEST_V1",
+  "method": "GET",
+  "path": "/api/v1/prometheon/phase1/snapshots/2026-05-18/aggregate",
+  "query_hash": "0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "body_hash": "0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "timestamp": "2026-05-20T00:00:00Z",
+  "nonce": "0xa4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4",
+  "chain_network": "finney",
+  "platform_instance_id": "bitfan-production",
+  "netuid": 123,
+  "role": "validator",
+  "mode": "aggregate",
+  "validator_hotkey": "5GsBjPJh6y2NFmJYJ1ti93buusQhxhYGyNBcwbUVpXRLqe8P",
+  "api_token_hash": "0x399568368be0969cf6b7514b450aa948d9908dda84745f56044557edf60cb611"
+}

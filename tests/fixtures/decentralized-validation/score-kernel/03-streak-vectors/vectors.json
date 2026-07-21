@@ -1,0 +1,134 @@
+{
+  "vectors": [
+    {
+      "base_epoch": "2026-07-20",
+      "prior_raw_desc": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "bonus": 0
+    },
+    {
+      "base_epoch": "2026-07-20",
+      "prior_raw_desc": [
+        4,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "bonus": 0
+    },
+    {
+      "base_epoch": "2026-07-20",
+      "prior_raw_desc": [
+        4,
+        4,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "bonus": 1
+    },
+    {
+      "base_epoch": "2026-07-20",
+      "prior_raw_desc": [
+        4,
+        4,
+        4,
+        0,
+        0,
+        0,
+        0
+      ],
+      "bonus": 1
+    },
+    {
+      "base_epoch": "2026-07-20",
+      "prior_raw_desc": [
+        4,
+        4,
+        4,
+        4,
+        0,
+        0,
+        0
+      ],
+      "bonus": 2
+    },
+    {
+      "base_epoch": "2026-07-20",
+      "prior_raw_desc": [
+        20,
+        20,
+        20,
+        20,
+        20,
+        0,
+        0
+      ],
+      "bonus": 2
+    },
+    {
+      "base_epoch": "2026-07-20",
+      "prior_raw_desc": [
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        0
+      ],
+      "bonus": 3
+    },
+    {
+      "base_epoch": "2026-07-20",
+      "prior_raw_desc": [
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4
+      ],
+      "bonus": 3
+    },
+    {
+      "base_epoch": "2026-07-20",
+      "prior_raw_desc": [
+        4,
+        3,
+        4,
+        4,
+        4,
+        4,
+        4
+      ],
+      "bonus": 0
+    },
+    {
+      "base_epoch": "2026-07-20",
+      "prior_raw_desc": [
+        4,
+        4,
+        0,
+        4,
+        4,
+        4,
+        4
+      ],
+      "bonus": 1
+    }
+  ]
+}

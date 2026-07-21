@@ -1,0 +1,19 @@
+{
+  "domain": "PROMETHEON_HOTKEY_RECOVERY_V1",
+  "recovery_method": "coldkey",
+  "action": "recover_hotkey",
+  "role": "validator",
+  "chain_network": "finney",
+  "platform_instance_id": "bitfan-production",
+  "netuid": 123,
+  "platform_account_id": "acct_test_validator_01",
+  "old_hotkey_ss58": "5GsBjPJh6y2NFmJYJ1ti93buusQhxhYGyNBcwbUVpXRLqe8P",
+  "coldkey_ss58": "5FvhccCR2wgZHc5yiQCBRFm6ceJAjpNGcsFpAd6yAEE86zTz",
+  "new_hotkey_ss58": "5FFPDFr4HQAqXckJxkmgWuHBKrNH939Vay2DjUmZaLR347Jc",
+  "nonce": "nonce_test_validator_coldkey_recovery_01",
+  "issued_at": "2026-05-20T00:00:00Z",
+  "expires_at": "2026-05-20T00:10:00Z",
+  "api_token_hash": "0x399568368be0969cf6b7514b450aa948d9908dda84745f56044557edf60cb611",
+  "pending_hours": 24,
+  "recovery_cooldown_days": 14
+}

@@ -1,0 +1,19 @@
+{
+  "domain": "PROMETHEON_HOTKEY_RECOVERY_V1",
+  "recovery_method": "manual_2fa_ops",
+  "action": "recover_hotkey",
+  "role": "miner",
+  "chain_network": "finney",
+  "platform_instance_id": "bitfan-production",
+  "netuid": 123,
+  "platform_account_id": "acct_test_miner_01",
+  "old_hotkey_ss58": "5F9MHZ78mgGtgAkYBAmj6KiCaK6tJphh75R4rmUWJT6cjoPS",
+  "new_hotkey_ss58": "5E9XqbLCgv86mP66SmFUv9MAomPVd2GQjQdAH4rf45ymwngY",
+  "discord_handle_hash": "0x57a91cdcd89fa4980e61e5c0cb5f7c7af4094534cc271a2ebc97ae024f442480",
+  "nonce": "nonce_test_miner_manual_recovery_01",
+  "issued_at": "2026-05-20T00:00:00Z",
+  "expires_at": "2026-05-20T00:10:00Z",
+  "api_token_hash": "0x624edbee5f6e09e50c785813dfc08d3f1450007bc6ab97a406a994bd68cf745a",
+  "pending_hours": 24,
+  "recovery_cooldown_days": 14
+}

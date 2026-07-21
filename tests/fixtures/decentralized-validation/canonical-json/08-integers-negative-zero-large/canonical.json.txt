@@ -1,0 +1,1 @@
+{"large":1000000000,"max_user_score_14d":280,"negative":-42,"zero":0}
