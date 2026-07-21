@@ -1,0 +1,8 @@
+{
+  "purpose": "Bittensor coldkey used in coldkey-recovery fixtures. TEST KEY ONLY.",
+  "seed_label": "PROMETHEON-PHASE1-TEST-COLDKEY-SR25519-2026-05",
+  "seed_hex": "0xa9b72a3d85f97cebe1431a5efa5a1e9a22692621ccf35ad9a827c870593dc7fa",
+  "public_key_hex": "0xaad6278bbcd9e1efd9c997fcca545c4d2491d106a6bc54927050cbf5eab4e62a",
+  "secret_key_hex": "0x28cac09e53d3ae353bae3656cf7f5bcf72d4f6457bce20b4c50de198f20dcc42a03f047812427ad64a1a450a135ada1b008f3d18c427ee2668ca64ae807f88e3",
+  "ss58": "5FvhccCR2wgZHc5yiQCBRFm6ceJAjpNGcsFpAd6yAEE86zTz"
+}

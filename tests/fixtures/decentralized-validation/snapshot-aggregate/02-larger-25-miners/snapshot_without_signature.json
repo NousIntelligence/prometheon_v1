@@ -1,0 +1,150 @@
+{
+  "schema_version": "1.0",
+  "domain": "PROMETHEON_SNAPSHOT_V1",
+  "mechanism": "phase1_growth",
+  "mechid": 0,
+  "mode": "aggregate",
+  "snapshot_id": "phase1:2026-05-18:aggregate",
+  "chain_network": "finney",
+  "platform_instance_id": "bitfan-production",
+  "netuid": 123,
+  "activity_date": "2026-05-18",
+  "generated_at": "2026-05-19T00:20:31Z",
+  "window_start_date": "2026-05-05",
+  "window_end_date": "2026-05-18",
+  "daily_score_cap": 20,
+  "active_member_score_threshold": 50,
+  "min_active_members_for_reward": 3,
+  "top_k": 10,
+  "burn_hotkey": "5EvwPMsxcmi7CPDqYwD7m6UUxc8AZXUt1UBWuiBgxHcYXFdL",
+  "manual_burn_rate_ppm": 150000,
+  "platform_key_id": "platform-test-2026-05",
+  "records_hash": "0xa5c246d8d5b754cf107c0677224ef2250740b15d1c8e3f2d8ee9504443df474f",
+  "miners": [
+    {
+      "miner_hotkey": "5C68Sa2YijY1P5MZ3edDqubjMJa4aKmBpsjo7xTo4sbkSBnc",
+      "miner_score_points": 322,
+      "active_member_count": 9
+    },
+    {
+      "miner_hotkey": "5C9yRqVc79rQKNPNngn6XupAZgZw6DP4Xp3zD41wnQzRVJYi",
+      "miner_score_points": 655,
+      "active_member_count": 4
+    },
+    {
+      "miner_hotkey": "5CHm9ztGYNi1L1zeH5PgSs9YvijQUAJSXLndbRFPHwfYvynY",
+      "miner_score_points": 803,
+      "active_member_count": 8
+    },
+    {
+      "miner_hotkey": "5CQrF41nUgVqqtDw6Z1BehqX26R79YnkAmy51TWjrosUCa36",
+      "miner_score_points": 877,
+      "active_member_count": 3
+    },
+    {
+      "miner_hotkey": "5CUJhJweGAqwnPT52ug3y4hJBfLhLrTGnLCPkWEzxPodFjai",
+      "miner_score_points": 211,
+      "active_member_count": 6
+    },
+    {
+      "miner_hotkey": "5CVgnqfG6mzeB1K3mor1CavSoTWueMXPKTiqv17HKiZTxcyw",
+      "miner_score_points": 470,
+      "active_member_count": 6
+    },
+    {
+      "miner_hotkey": "5CkpgG7y6batX9zJ9cM963MCKKUF53ZWRNYCTTNQemre3SW5",
+      "miner_score_points": 544,
+      "active_member_count": 8
+    },
+    {
+      "miner_hotkey": "5Cxko2QPaxcMindDPzpTVUvQnCk3Kha6aF378ZPBkGjGkLnv",
+      "miner_score_points": 618,
+      "active_member_count": 3
+    },
+    {
+      "miner_hotkey": "5DAvzNGUSyeBdDmVrKiFxGazNdRFioAEe72aeqeEv4inZ4ae",
+      "miner_score_points": 285,
+      "active_member_count": 8
+    },
+    {
+      "miner_hotkey": "5Ddz8TfsPK5eQu2nbisdr4tADssdgo2trex8cmEW1rFHWFs9",
+      "miner_score_points": 951,
+      "active_member_count": 5
+    },
+    {
+      "miner_hotkey": "5EC1WAkQyoXZ7iqostreVRxfaJnoWD62QYvz1jEgQH47yQBU",
+      "miner_score_points": 692,
+      "active_member_count": 5
+    },
+    {
+      "miner_hotkey": "5EJDrYknpb1BTymneMg9WkGaboGEsmfqTbXiC8zfwet7TzPo",
+      "miner_score_points": 581,
+      "active_member_count": 9
+    },
+    {
+      "miner_hotkey": "5F3FWGJngHkug5FEAm2e1uwiKQknbJMxb5R6V2UMVZfPqAw4",
+      "miner_score_points": 248,
+      "active_member_count": 7
+    },
+    {
+      "miner_hotkey": "5FbXidMFerfNMjCsVg6kFHjdd1ZzLHSQyNLVa6gtcQMEMmjz",
+      "miner_score_points": 100,
+      "active_member_count": 3
+    },
+    {
+      "miner_hotkey": "5FfsQNeEUB2Rx728d1hkAcGrcfbQrErpwcSwBeAHYqR81ChE",
+      "miner_score_points": 396,
+      "active_member_count": 4
+    },
+    {
+      "miner_hotkey": "5FghVVZtoAxDxoPgtmwxJ8XF6XW9hBgAuhWz3hViaTb8umPh",
+      "miner_score_points": 840,
+      "active_member_count": 9
+    },
+    {
+      "miner_hotkey": "5FuGqFkWn8VmX8JNvAYWqZTeBFgunimeCekoX1j2BeavhJkG",
+      "miner_score_points": 137,
+      "active_member_count": 4
+    },
+    {
+      "miner_hotkey": "5FxPF6BZLrafL2f25otQSqPX8NjDQNsRHKLVRyLYdPFmeqCR",
+      "miner_score_points": 766,
+      "active_member_count": 7
+    },
+    {
+      "miner_hotkey": "5G3jFWcMRHFGzAcp1UthPRfoYXRvyToaRgTbtyz29nrU18Tx",
+      "miner_score_points": 359,
+      "active_member_count": 3
+    },
+    {
+      "miner_hotkey": "5GBJ8VBENK1cfeDrX11p8wrNjriaKxGkqsvWbfSKU1K1TxP2",
+      "miner_score_points": 433,
+      "active_member_count": 5
+    },
+    {
+      "miner_hotkey": "5GQo6wcCradnSqaeehFKdfDrxs1VgXmAekf6HmVhdz5Tfke3",
+      "miner_score_points": 988,
+      "active_member_count": 6
+    },
+    {
+      "miner_hotkey": "5Gv8Gbe1t76oEJE6PBrbsAaNRzmoLiXHHX4KAV1jTWw5Cs7R",
+      "miner_score_points": 729,
+      "active_member_count": 6
+    },
+    {
+      "miner_hotkey": "5HHRCCCmcv3PcqTmhWSm9cKzSFZJWpJr66tFsZ4sSdSafDyr",
+      "miner_score_points": 507,
+      "active_member_count": 7
+    },
+    {
+      "miner_hotkey": "5HgRWCrvXDkuwWXxXQAxxCpgiJx2yJ4K4sUdKTHkMYBx2gJE",
+      "miner_score_points": 174,
+      "active_member_count": 5
+    },
+    {
+      "miner_hotkey": "5HngUwkyiX7HH3DcuDaL3fWa64xwPLBHYUy2r6xgVuEb5KB6",
+      "miner_score_points": 914,
+      "active_member_count": 4
+    }
+  ]
+}

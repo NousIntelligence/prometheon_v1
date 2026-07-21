@@ -1,0 +1,41 @@
+{
+  "schema_version": "1.0",
+  "domain": "PROMETHEON_SNAPSHOT_V1",
+  "mechanism": "phase1_growth",
+  "mechid": 0,
+  "mode": "aggregate",
+  "snapshot_id": "phase1:2026-05-18:aggregate",
+  "chain_network": "finney",
+  "platform_instance_id": "bitfan-production",
+  "netuid": 123,
+  "activity_date": "2026-05-18",
+  "generated_at": "2026-05-19T00:20:31Z",
+  "window_start_date": "2026-05-05",
+  "window_end_date": "2026-05-18",
+  "daily_score_cap": 20,
+  "active_member_score_threshold": 50,
+  "min_active_members_for_reward": 3,
+  "top_k": 10,
+  "burn_hotkey": "5EvwPMsxcmi7CPDqYwD7m6UUxc8AZXUt1UBWuiBgxHcYXFdL",
+  "manual_burn_rate_ppm": 150000,
+  "platform_key_id": "platform-test-2026-05",
+  "records_hash": "0xedd71f6a3bc4f3ef04f36c8d98518e95b113ca1a43f108e946c2bd588d6e639d",
+  "miners": [
+    {
+      "miner_hotkey": "5E9XqbLCgv86mP66SmFUv9MAomPVd2GQjQdAH4rf45ymwngY",
+      "miner_score_points": 980,
+      "active_member_count": 5
+    },
+    {
+      "miner_hotkey": "5F9MHZ78mgGtgAkYBAmj6KiCaK6tJphh75R4rmUWJT6cjoPS",
+      "miner_score_points": 1240,
+      "active_member_count": 8
+    },
+    {
+      "miner_hotkey": "5GsBjPJh6y2NFmJYJ1ti93buusQhxhYGyNBcwbUVpXRLqe8P",
+      "miner_score_points": 555,
+      "active_member_count": 4
+    }
+  ],
+  "platform_signature": "0x47fa0cf9c8b8130ed70c7abfa1a3a93700f3fd19f437011bed5bebde9602adf2ec2df82523908ae3116ca31c6d9355a7dd17e5145aabb3eab770c060e1cb1b0e"
+}

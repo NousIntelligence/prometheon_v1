@@ -1,0 +1,21 @@
+{
+  "domain": "PROMETHEON_EVENT_RECORD_V1",
+  "family": "exclusion",
+  "seq": 88,
+  "epoch_id": "2026-07-15",
+  "event_id": "0x0e4debb3a40ede26eb35be3f5646247685fa9606479d6b562ba0ddf3868d9755",
+  "user_ref_evt": "usr_evt_34e7753b90e6a4365de04bbcff8e5755696337b82d01b362ae5b04fe646d068e",
+  "group_id": "3f7b1e90-2c44-4a88-b5d1-9e2a6c0f4b73",
+  "received_ts": "2026-07-15T00:05:11Z",
+  "category_id": null,
+  "core": {
+    "kind": "verdict",
+    "applies_to_epoch": "2026-07-14",
+    "weight_bp": 2500,
+    "reason_codes": [
+      "device_cluster"
+    ]
+  },
+  "device_pubkey": null,
+  "user_sig": null
+}

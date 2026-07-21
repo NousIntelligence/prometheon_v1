@@ -1,0 +1,78 @@
+{
+  "domain": "PROMETHEON_RECORD_PAGE_V1",
+  "schema_version": "1.0",
+  "mechanism": "phase1_growth",
+  "mechid": 0,
+  "chain_network": "finney",
+  "platform_instance_id": "bitfan-production",
+  "netuid": 123,
+  "snapshot_id": "phase1:2026-05-18:detailed",
+  "snapshot_build_id": "00000000-0000-4000-8000-000000000001",
+  "mode": "detailed",
+  "activity_date": "2026-05-18",
+  "page_index": 0,
+  "record_count": 12,
+  "records": [
+    {
+      "user_ref": "usr_89320f3d49c50a0a889ca0c2e07b703829920251bc3255434f9eda095df02cc1",
+      "miner_hotkey": "5E9XqbLCgv86mP66SmFUv9MAomPVd2GQjQdAH4rf45ymwngY",
+      "user_score_14d_points": 196
+    },
+    {
+      "user_ref": "usr_c445994f9887abf09704a674eaa67fbf1795dae96dc2d4689a29184744f5198d",
+      "miner_hotkey": "5E9XqbLCgv86mP66SmFUv9MAomPVd2GQjQdAH4rf45ymwngY",
+      "user_score_14d_points": 128
+    },
+    {
+      "user_ref": "usr_c50219ba55a96f697b392c5257b0794ae17965850f47847592cdcb63c15d583f",
+      "miner_hotkey": "5E9XqbLCgv86mP66SmFUv9MAomPVd2GQjQdAH4rf45ymwngY",
+      "user_score_14d_points": 60
+    },
+    {
+      "user_ref": "usr_19f243871422e513b9384d2a1f2f3a3b4e57fddf27557dcc6a5415b69a32fc28",
+      "miner_hotkey": "5F9MHZ78mgGtgAkYBAmj6KiCaK6tJphh75R4rmUWJT6cjoPS",
+      "user_score_14d_points": 145
+    },
+    {
+      "user_ref": "usr_9920d9ab7885ebaa5407e48819b4249d4480bd45c42ce1a9dca536ce08d44e71",
+      "miner_hotkey": "5F9MHZ78mgGtgAkYBAmj6KiCaK6tJphh75R4rmUWJT6cjoPS",
+      "user_score_14d_points": 213
+    },
+    {
+      "user_ref": "usr_9ef8c4df63df7915b74771ee72cf1dd3753188c593b5cb0bc2d908f7f4e1ce55",
+      "miner_hotkey": "5F9MHZ78mgGtgAkYBAmj6KiCaK6tJphh75R4rmUWJT6cjoPS",
+      "user_score_14d_points": 77
+    },
+    {
+      "user_ref": "usr_2969535e75b78c1bb2f40c7b47bd40c09c402d3c0f934fa2b1937c927836b181",
+      "miner_hotkey": "5FFPDFr4HQAqXckJxkmgWuHBKrNH939Vay2DjUmZaLR347Jc",
+      "user_score_14d_points": 230
+    },
+    {
+      "user_ref": "usr_c714bfeced97578e54f9be899299e884f0494a134685dc30895460bf9158b4df",
+      "miner_hotkey": "5FFPDFr4HQAqXckJxkmgWuHBKrNH939Vay2DjUmZaLR347Jc",
+      "user_score_14d_points": 162
+    },
+    {
+      "user_ref": "usr_cf6e0960bc8d2b92b87050ffa00710f6ce9af08ef37dfb3e4f2fdbed9ab416f7",
+      "miner_hotkey": "5FFPDFr4HQAqXckJxkmgWuHBKrNH939Vay2DjUmZaLR347Jc",
+      "user_score_14d_points": 94
+    },
+    {
+      "user_ref": "usr_6c9e37d119f8621c45d4700148c4d72babf051fc587aca75ea6ca7aefda6dccf",
+      "miner_hotkey": "5GsBjPJh6y2NFmJYJ1ti93buusQhxhYGyNBcwbUVpXRLqe8P",
+      "user_score_14d_points": 247
+    },
+    {
+      "user_ref": "usr_90401325f9b6056dc8714c6aa8782504029e7efe3b205327490a1e31c84c2167",
+      "miner_hotkey": "5GsBjPJh6y2NFmJYJ1ti93buusQhxhYGyNBcwbUVpXRLqe8P",
+      "user_score_14d_points": 179
+    },
+    {
+      "user_ref": "usr_c48c5a30463c94114a72a9ec063e0640300ddd0be92413574dd0657e64602298",
+      "miner_hotkey": "5GsBjPJh6y2NFmJYJ1ti93buusQhxhYGyNBcwbUVpXRLqe8P",
+      "user_score_14d_points": 111
+    }
+  ],
+  "page_hash": "0x11055fedf1905c2e557ccf3732137de51a92b806d9770b3c568b2fc2c1116acd"
+}

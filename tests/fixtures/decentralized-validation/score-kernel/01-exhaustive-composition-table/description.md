@@ -1,0 +1,3 @@
+# score-kernel 01-exhaustive-composition-table
+
+The COMPLETE input domain of the frozen daily-score composition (Decentralized Validation D21): `daily_raw` 0–20 × `streak_bonus` 0–3 × the five locked verdict weights {0, 1250, 2500, 5000, 10000} basis points — 420 cases. Both implementations MUST reproduce `expected_daily_score` for every case: `daily_score = floor(min(22, daily_raw + streak_bonus) × weight_bp / 10000)` in integer arithmetic. The weights are the exact value set of the platform's `risk_multiplier × cluster_multiplier` enforcement product; full weight (10000) is never carried by a verdict record — an absent record is full weight.
