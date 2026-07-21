@@ -25,6 +25,7 @@ from typing import Any
 
 import click
 
+from prometheon.cli.ingest_cmd import ingest
 from prometheon.cli.recover_hotkey import recover_hotkey
 from prometheon.cli.renderer import render_error
 from prometheon.cli.rotate_hotkey import rotate_hotkey
@@ -83,6 +84,7 @@ cli.add_command(rotate_hotkey)
 cli.add_command(recover_hotkey)
 cli.add_command(validator)
 cli.add_command(status)
+cli.add_command(ingest)
 
 
 def _is_verbose_argv(argv: list[str]) -> bool:
