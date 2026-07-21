@@ -261,6 +261,16 @@ The validator's `read_hyperparameters` reads `commit_reveal_weights_enabled` fro
 
 ---
 
+## Decentralized Validation (event stream)
+
+The event-stream ingest + open-recomputation program (the successor to the
+trusted-snapshot data source) has its own operator guide:
+[`decentralized-validation.md`](./decentralized-validation.md) — ingest
+endpoint setup and registration, catch-up and day-digest completeness,
+scoring, shadow mode, and the cutover procedure.
+
+---
+
 ## Operational Notes
 
 - **Snapshot key rotation**: the platform team will publish new `platform_key_id` entries before retiring an old one. Add the new entry to your `[platform.snapshot_keys]` config block before the platform starts signing with it. Multiple active keys may coexist.
