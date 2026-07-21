@@ -1,0 +1,16 @@
+{
+  "domain": "PROMETHEON_IDENTITY_VERIFY_V1",
+  "action": "verify_identity",
+  "role": "miner",
+  "chain_network": "test",
+  "platform_instance_id": "bitfan-staging",
+  "netuid": 1,
+  "platform_account_id": "acct_test_miner_01",
+  "username_hash": "0x2e184d695ac22b895906a6c966a9b8c386a6d4cde85c64a4b1fc8fc3bc4ec1f2",
+  "email_hash": "0xf80cb97ce42015fd3bd9800fd87af0061faae1d53db0287beed0d2350f84bfc7",
+  "hotkey_ss58": "5F9MHZ78mgGtgAkYBAmj6KiCaK6tJphh75R4rmUWJT6cjoPS",
+  "nonce": "nonce_test_miner_testnet_01",
+  "issued_at": "2026-05-20T00:00:00Z",
+  "expires_at": "2026-05-20T00:10:00Z",
+  "api_token_hash": "0x624edbee5f6e09e50c785813dfc08d3f1450007bc6ab97a406a994bd68cf745a"
+}

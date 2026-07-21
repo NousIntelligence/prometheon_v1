@@ -1,0 +1,16 @@
+{
+  "domain": "PROMETHEON_IDENTITY_VERIFY_V1",
+  "action": "verify_identity",
+  "role": "validator",
+  "chain_network": "finney",
+  "platform_instance_id": "bitfan-production",
+  "netuid": 123,
+  "platform_account_id": "acct_test_validator_01",
+  "username_hash": "0x34437e4355b942dd62cda412e9409d0b3cdfa9ad7cda2142c8b1cb30afb94f11",
+  "email_hash": "0x981f024660aa4bd870805d929dac37bf4862dff17f41598d080078e689060e48",
+  "hotkey_ss58": "5GsBjPJh6y2NFmJYJ1ti93buusQhxhYGyNBcwbUVpXRLqe8P",
+  "nonce": "nonce_test_validator_finney_01",
+  "issued_at": "2026-05-20T00:00:00Z",
+  "expires_at": "2026-05-20T00:10:00Z",
+  "api_token_hash": "0x399568368be0969cf6b7514b450aa948d9908dda84745f56044557edf60cb611"
+}

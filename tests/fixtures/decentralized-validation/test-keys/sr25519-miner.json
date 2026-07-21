@@ -1,0 +1,8 @@
+{
+  "purpose": "Bittensor miner hotkey. TEST KEY ONLY.",
+  "seed_label": "PROMETHEON-PHASE1-TEST-MINER-SR25519-2026-05",
+  "seed_hex": "0xc37161a1ea14201e22f188d623c1bbd1be0042543ad1d1cea430a59bacab3e08",
+  "public_key_hex": "0x883fadef3a312e62269f3bee9e6e4193dacd37f199633427a5b9ea13627cd136",
+  "secret_key_hex": "0x70e8729c7bf3fee9b1545076a373e42486e9d2fa8dce02d31c0289c10af7895484da7ccb0e40291e301edad0131453ee64ed2faec02efca19afb9700c3cfd002",
+  "ss58": "5F9MHZ78mgGtgAkYBAmj6KiCaK6tJphh75R4rmUWJT6cjoPS"
+}

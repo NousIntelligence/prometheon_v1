@@ -1,0 +1,8 @@
+{
+  "purpose": "Burn-target hotkey embedded in signed snapshots. TEST KEY ONLY.",
+  "seed_label": "PROMETHEON-PHASE1-TEST-BURN-SR25519-2026-05",
+  "seed_hex": "0x77e96e1d6ce069dfc2f84981751a8d3aba360fb3de62a2f1fec7b6367eb2e7d5",
+  "public_key_hex": "0x7ec847c704b64ce1e66f036cff20b5b247c2e52ae4ba4e6dcbc195b8d7858669",
+  "secret_key_hex": "0x40847e4eeba15118c1ed278e21baf61aafcece49fdeffb05865740e9860d59734cb0980f9d66cf2e305b47134e367457976d89d57c96ce76a45d8ac0bef41aa6",
+  "ss58": "5EvwPMsxcmi7CPDqYwD7m6UUxc8AZXUt1UBWuiBgxHcYXFdL"
+}

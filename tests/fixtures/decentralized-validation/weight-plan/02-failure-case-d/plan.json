@@ -1,0 +1,27 @@
+{
+  "domain": "PROMETHEON_WEIGHT_PLAN_V1",
+  "schema_version": "1.0",
+  "mechanism": "phase1_growth",
+  "mechid": 0,
+  "chain_network": "finney",
+  "platform_instance_id": "bitfan-production",
+  "netuid": 123,
+  "snapshot_id": "phase1:2026-05-18:aggregate",
+  "activity_date": "2026-05-18",
+  "metagraph_block": 1234567,
+  "burn_case": "D",
+  "status": "no_valid_weight_target",
+  "failure_reason": "no_eligible_miners_and_burn_hotkey_missing",
+  "items": [],
+  "excluded": [
+    {
+      "hotkey": "5F9MHZ78mgGtgAkYBAmj6KiCaK6tJphh75R4rmUWJT6cjoPS",
+      "reason": "below_active_member_threshold"
+    },
+    {
+      "hotkey": "5E9XqbLCgv86mP66SmFUv9MAomPVd2GQjQdAH4rf45ymwngY",
+      "reason": "below_active_member_threshold"
+    }
+  ],
+  "total_weight_units": 0
+}
