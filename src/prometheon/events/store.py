@@ -120,7 +120,10 @@ class EventStore:
     """SQLite-backed store; one instance per process, callers serialize."""
 
     def __init__(self, path: Path | str) -> None:
-        self._connection = sqlite3.connect(str(path))
+        # check_same_thread=False: the ingest app runs store calls on a
+        # threadpool worker while holding an asyncio lock — access is
+        # serialized by contract, so cross-thread use is safe.
+        self._connection = sqlite3.connect(str(path), check_same_thread=False)
         self._connection.execute("PRAGMA journal_mode=WAL")
         self._connection.execute("PRAGMA synchronous=FULL")
         self._connection.executescript(_SCHEMA)
