@@ -1,0 +1,8 @@
+{
+  "purpose": "Replacement miner hotkey for rotation/recovery fixtures. TEST KEY ONLY.",
+  "seed_label": "PROMETHEON-PHASE1-TEST-MINER-NEW-SR25519-2026-05",
+  "seed_hex": "0x5ecc2f80683859ba82588a61f21041a9d92a939c8e99f2dcf9ed2a055d86b6a8",
+  "public_key_hex": "0x5c26f7edfd29dd63883e4d62dc31bc1d1562984c14b2d7e91b29fe3100ed3b67",
+  "secret_key_hex": "0x3063637976e9d7e7974adc189fcee44ab0a5f30b22535c38aadb0f18587dea6f221bd67563d4e179968f0cf54db4d700cc2ca0558af3b37e6db305089d16a33f",
+  "ss58": "5E9XqbLCgv86mP66SmFUv9MAomPVd2GQjQdAH4rf45ymwngY"
+}

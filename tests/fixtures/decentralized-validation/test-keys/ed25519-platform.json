@@ -1,0 +1,9 @@
+{
+  "purpose": "Platform snapshot signing (Ed25519). TEST KEY ONLY.",
+  "key_id": "platform-test-2026-05",
+  "seed_label": "PROMETHEON-PHASE1-TEST-PLATFORM-ED25519-2026-05",
+  "seed_sha256_base64": "37wvsrYony/1NhsydLAfAOWAA9HcHJ7RUVlNCaRIwj0=",
+  "private_key_base64": "37wvsrYony/1NhsydLAfAOWAA9HcHJ7RUVlNCaRIwj0=",
+  "public_key_base64": "rtG16opOw1fwYarBAgaRyQxZ3XHlq4gsgyeBs0ZtAR4=",
+  "public_key_hex": "0xaed1b5ea8a4ec357f061aac1020691c90c59dd71e5ab882c832781b3466d011e"
+}

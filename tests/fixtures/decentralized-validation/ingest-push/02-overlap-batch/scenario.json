@@ -1,0 +1,38 @@
+{
+  "batch": "../01-signed-batch/signed_batch.json",
+  "from_seq": 4207,
+  "to_seq": 4208,
+  "cases": [
+    {
+      "name": "exact_next",
+      "given_last_stored_seq": 4206,
+      "expect_store_seqs": [
+        4207,
+        4208
+      ],
+      "expect_ack_received_through_seq": 4208
+    },
+    {
+      "name": "overlap_with_new_tail",
+      "given_last_stored_seq": 4207,
+      "expect_store_seqs": [
+        4208
+      ],
+      "expect_ack_received_through_seq": 4208,
+      "note": "skip seq <= last_stored, store the contiguous tail — refusing the tail can stall this validator indefinitely behind another validator's outage"
+    },
+    {
+      "name": "full_duplicate",
+      "given_last_stored_seq": 4208,
+      "expect_store_seqs": [],
+      "expect_ack_received_through_seq": 4208
+    },
+    {
+      "name": "forward_gap",
+      "given_last_stored_seq": 4205,
+      "expect_store_seqs": [],
+      "expect_ack_received_through_seq": 4205,
+      "note": "reject (non-2xx, or 2xx with the true lower position) and pull 4206 via the backfill API before accepting pushes"
+    }
+  ]
+}

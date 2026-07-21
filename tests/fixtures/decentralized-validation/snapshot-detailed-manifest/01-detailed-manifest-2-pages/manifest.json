@@ -1,0 +1,40 @@
+{
+  "schema_version": "1.0",
+  "domain": "PROMETHEON_SNAPSHOT_V1",
+  "mechanism": "phase1_growth",
+  "mechid": 0,
+  "mode": "detailed",
+  "snapshot_id": "phase1:2026-05-18:detailed",
+  "snapshot_build_id": "00000000-0000-4000-8000-000000000001",
+  "chain_network": "finney",
+  "platform_instance_id": "bitfan-production",
+  "netuid": 123,
+  "activity_date": "2026-05-18",
+  "generated_at": "2026-05-19T00:20:31Z",
+  "window_start_date": "2026-05-05",
+  "window_end_date": "2026-05-18",
+  "daily_score_cap": 20,
+  "active_member_score_threshold": 50,
+  "min_active_members_for_reward": 3,
+  "top_k": 10,
+  "burn_hotkey": "5EvwPMsxcmi7CPDqYwD7m6UUxc8AZXUt1UBWuiBgxHcYXFdL",
+  "manual_burn_rate_ppm": 150000,
+  "platform_key_id": "platform-test-2026-05",
+  "record_count": 16,
+  "page_size": 50000,
+  "page_count": 2,
+  "pages": [
+    {
+      "page_index": 0,
+      "record_count": 12,
+      "page_hash": "0x11055fedf1905c2e557ccf3732137de51a92b806d9770b3c568b2fc2c1116acd"
+    },
+    {
+      "page_index": 1,
+      "record_count": 4,
+      "page_hash": "0xa5732c39861f381a802e749fb3a483bef0d8ca68e05b4350139a9ac50f6aeca9"
+    }
+  ],
+  "records_hash": "0xb9dad8ca39e139859b6eb09037ba38e89afa331bbb745595ad8a266bd9b38c6a",
+  "platform_signature": "0xf951d495c89f16c96087613c1a698416f7b38cac2fde6a9c27e1d4afb018c0fde8200104b291767e96289f530f3ddc4a75f1f403f1391abd889650d682e95709"
+}

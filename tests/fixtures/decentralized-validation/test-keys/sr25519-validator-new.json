@@ -1,0 +1,8 @@
+{
+  "purpose": "Replacement validator hotkey. TEST KEY ONLY.",
+  "seed_label": "PROMETHEON-PHASE1-TEST-VALIDATOR-NEW-SR25519-2026-05",
+  "seed_hex": "0xaa8ec5ad97a7526a1c0e8dd141426344ed79e1426bdbb8daabfda2138da89bd2",
+  "public_key_hex": "0x8cd9a29129ab2d62c2eec5f253a4e30a3d09163db688d61ab4090f1407bb201d",
+  "secret_key_hex": "0xf0ea48289e934376bb9631797731fdc62267874dbc272a0330c85e68de126470f230bfa665ab519ba08d81ebe62346492c771973858da6a97e8cd9fb9bae4c97",
+  "ss58": "5FFPDFr4HQAqXckJxkmgWuHBKrNH939Vay2DjUmZaLR347Jc"
+}
