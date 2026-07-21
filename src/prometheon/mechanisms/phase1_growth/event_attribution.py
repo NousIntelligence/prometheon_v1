@@ -32,8 +32,12 @@ ATTRIBUTION_DAY_CLAMP: Final[int] = 20
 ACTIVE_MEMBER_THRESHOLD: Final[int] = 50
 MIN_ACTIVE_MEMBERS: Final[int] = 3
 
-_BIND_KINDS: Final[frozenset[str]] = frozenset({"miner_hotkey_bind", "validator_hotkey_bind"})
-_UNBIND_KINDS: Final[frozenset[str]] = frozenset({"miner_hotkey_unbind", "validator_hotkey_unbind"})
+# Attribution resolves the leader's MINER binding only. A leader may also
+# hold a validator role with its own hotkey (the platform supports both per
+# account); validator bind/unbind records must never enter this state lane,
+# or a later validator bind would steal the group's attribution.
+_BIND_KINDS: Final[frozenset[str]] = frozenset({"miner_hotkey_bind"})
+_UNBIND_KINDS: Final[frozenset[str]] = frozenset({"miner_hotkey_unbind"})
 
 
 class EventAttributionError(ValueError):
