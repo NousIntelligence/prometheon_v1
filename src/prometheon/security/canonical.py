@@ -13,8 +13,8 @@ restricts what may be canonicalized:
 - Duplicate JSON object keys are rejected at parse time. Two implementations
   that disagree on which duplicate "wins" would compute different signatures
   and different hashes from the same wire bytes.
-- The eight Prometheon signing domains are declared as module-level constants;
-  arbitrary domain strings are not accepted by the envelope helper.
+- The twelve Prometheon signing domains are declared as module-level
+  constants; arbitrary domain strings are not accepted by the envelope helper.
 
 The envelope is the single byte sequence that is signed or hashed:
 
@@ -38,8 +38,8 @@ import rfc8785
 # ---------------------------------------------------------------------------
 # Signing domains.
 #
-# Every signed payload in Prometheon Phase 1 carries one of these eight domain
-# strings, both as the external prefix in the signed bytes and as the
+# Every signed payload in Prometheon Phase 1 carries one of these twelve
+# domain strings, both as the external prefix in the signed bytes and as the
 # ``domain`` field inside the payload object. The constants are exposed for
 # direct comparison; the ``ALL_DOMAINS`` set is used by ``domain_prefixed_bytes``
 # to reject typos and unknown domains.
@@ -54,6 +54,12 @@ DOMAIN_RECORD_SET: Final[str] = "PROMETHEON_RECORD_SET_V1"
 DOMAIN_RECORD_PAGE: Final[str] = "PROMETHEON_RECORD_PAGE_V1"
 DOMAIN_WEIGHT_PLAN: Final[str] = "PROMETHEON_WEIGHT_PLAN_V1"
 
+# Decentralized Validation (event-stream) domains.
+DOMAIN_INGEST_PUSH: Final[str] = "PROMETHEON_INGEST_PUSH_V1"
+DOMAIN_EVENT_RECORD: Final[str] = "PROMETHEON_EVENT_RECORD_V1"
+DOMAIN_EVENT: Final[str] = "PROMETHEON_EVENT_V1"
+DOMAIN_DAY_DIGEST: Final[str] = "PROMETHEON_DAY_DIGEST_V1"
+
 ALL_DOMAINS: Final[frozenset[str]] = frozenset(
     {
         DOMAIN_IDENTITY_VERIFY,
@@ -64,6 +70,10 @@ ALL_DOMAINS: Final[frozenset[str]] = frozenset(
         DOMAIN_RECORD_SET,
         DOMAIN_RECORD_PAGE,
         DOMAIN_WEIGHT_PLAN,
+        DOMAIN_INGEST_PUSH,
+        DOMAIN_EVENT_RECORD,
+        DOMAIN_EVENT,
+        DOMAIN_DAY_DIGEST,
     }
 )
 
@@ -84,7 +94,23 @@ class CanonicalEncodingError(ValueError):
     Subclasses ``ValueError`` so that callers handling generic input-validation
     errors continue to work, while specific handlers can dispatch on the
     Prometheon-specific exception type.
+
+    ``code`` categorises the rejection with the vocabulary shared with the
+    platform's strict parser (and pinned by the ``json-parser-rejection``
+    fixture suite): ``duplicate_key``, ``forbidden_key``, ``float_literal``,
+    ``invalid_json``, or the generic ``invalid``.
     """
+
+    def __init__(self, message: str, *, code: str = "invalid") -> None:
+        super().__init__(message)
+        self.code = code
+
+
+# Keys rejected at parse time regardless of nesting depth. Prototype-poisoning
+# escape hatches in JavaScript consumers; a Python validator never interprets
+# them specially, but the wire contract forbids them everywhere so both
+# implementations reject identical byte streams.
+_FORBIDDEN_KEYS: Final[frozenset[str]] = frozenset({"__proto__", "prototype", "constructor"})
 
 
 # ---------------------------------------------------------------------------
@@ -182,6 +208,9 @@ def parse_canonical_json(raw: str | bytes) -> Any:
     - Rejects any number that the underlying parser would represent as a
       Python ``float`` (numbers containing ``.`` or an exponent).
     - Rejects duplicate object keys.
+    - Rejects the prototype-poisoning keys ``__proto__``, ``prototype``,
+      and ``constructor`` at any depth (wire-contract rule shared with the
+      platform's strict parser).
 
     Use this parser when receiving JSON whose bytes will be hashed, signed,
     verified, or re-canonicalized. For best-effort parsing of non-canonical
@@ -215,7 +244,7 @@ def parse_canonical_json(raw: str | bytes) -> Any:
     except CanonicalEncodingError:
         raise
     except json.JSONDecodeError as exc:
-        raise CanonicalEncodingError(f"invalid JSON: {exc}") from exc
+        raise CanonicalEncodingError(f"invalid JSON: {exc}", code="invalid_json") from exc
 
 
 # ---------------------------------------------------------------------------
@@ -258,33 +287,46 @@ def _reject_float_literal(value: str) -> float:
     through here. Prometheon forbids such values entirely, so we raise with
     the literal in the message for debuggability.
     """
-    raise CanonicalEncodingError(f"float literal forbidden in Prometheon canonical JSON: {value!r}")
+    raise CanonicalEncodingError(
+        f"float literal forbidden in Prometheon canonical JSON: {value!r}",
+        code="float_literal",
+    )
 
 
 def _reject_constant_literal(value: str) -> float:
     """``parse_constant`` hook for :func:`json.loads` — always raises.
 
     Triggered for ``NaN``, ``Infinity``, and ``-Infinity``. None of these are
-    valid in Prometheon canonical JSON.
+    valid JSON at all, so the shared rejection vocabulary classifies them as
+    ``invalid_json`` rather than a Prometheon-specific restriction.
     """
     raise CanonicalEncodingError(
-        f"non-canonical JSON token forbidden in Prometheon canonical JSON: {value!r}"
+        f"non-canonical JSON token forbidden in Prometheon canonical JSON: {value!r}",
+        code="invalid_json",
     )
 
 
 def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-    """``object_pairs_hook`` for :func:`json.loads` — rejects duplicate keys.
+    """``object_pairs_hook`` for :func:`json.loads` — strict key policy.
 
-    The default Python parser silently keeps the last value for duplicate
-    keys; that behaviour is incompatible with byte-stable canonicalization
-    because two implementations might disagree on which value to keep.
+    Rejects duplicate keys (the default parser silently keeps the last
+    value, which is incompatible with byte-stable canonicalization) and the
+    prototype-poisoning keys, at every nesting depth. Unicode escapes in the
+    source are already decoded by the time keys reach this hook, so escaped
+    spellings of the same key are caught identically.
     """
     seen: set[str] = set()
     result: dict[str, Any] = {}
     for key, value in pairs:
+        if key in _FORBIDDEN_KEYS:
+            raise CanonicalEncodingError(
+                f"forbidden object key in Prometheon canonical JSON: {key!r}",
+                code="forbidden_key",
+            )
         if key in seen:
             raise CanonicalEncodingError(
-                f"duplicate JSON object key forbidden in Prometheon canonical JSON: {key!r}"
+                f"duplicate JSON object key forbidden in Prometheon canonical JSON: {key!r}",
+                code="duplicate_key",
             )
         seen.add(key)
         result[key] = value
@@ -294,9 +336,13 @@ def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 __all__ = [
     "ALL_DOMAINS",
     "DOMAIN_API_REQUEST",
+    "DOMAIN_DAY_DIGEST",
+    "DOMAIN_EVENT",
+    "DOMAIN_EVENT_RECORD",
     "DOMAIN_HOTKEY_RECOVERY",
     "DOMAIN_HOTKEY_ROTATION",
     "DOMAIN_IDENTITY_VERIFY",
+    "DOMAIN_INGEST_PUSH",
     "DOMAIN_RECORD_PAGE",
     "DOMAIN_RECORD_SET",
     "DOMAIN_SNAPSHOT",
