@@ -200,6 +200,7 @@ See [`docs/validator.md`](./docs/validator.md) and [`docs/deployment/testnet.md`
 | [`docs/burn-policy.md`](./docs/burn-policy.md) | Burn target, four allocation cases, missing-target fallback |
 | [`docs/hotkey-rotation.md`](./docs/hotkey-rotation.md) | Normal rotation, coldkey recovery, manual recovery |
 | [`docs/security.md`](./docs/security.md) | Signing primitives, replay defenses, key rotation |
+| [`docs/decentralized-validation.md`](./docs/decentralized-validation.md) | Event-stream ingest, open score recomputation, shadow mode |
 | [`docs/deployment/`](./docs/deployment/) | Localnet, testnet, mainnet deployment guides |
 
 ---
