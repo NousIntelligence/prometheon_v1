@@ -46,7 +46,18 @@ def ingest() -> None:
 @click.option(
     "--ingest-url", required=True, help="Public HTTPS URL of this validator's ingest endpoint."
 )
-@click.option("--platform-base-url", required=True, help="BitFan platform base URL.")
+@click.option(
+    "--config",
+    "config_path",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Validator TOML config (supplies base URL + the environment binding).",
+)
+@click.option(
+    "--platform-base-url",
+    default=None,
+    help="Override the platform base URL from the config.",
+)
 @click.option("--api-token", default=None, help="Long-lived validator token (overrides env var).")
 @click.option(
     "--api-token-env",
@@ -56,19 +67,33 @@ def ingest() -> None:
 )
 def register_endpoint(
     ingest_url: str,
-    platform_base_url: str,
+    config_path: Path,
+    platform_base_url: str | None,
     api_token: str | None,
     api_token_env: str,
 ) -> None:
-    """Register (or rotate to) this validator's public ingest URL."""
+    """Register (or rotate to) this validator's public ingest URL.
+
+    The registration call carries the same environment-binding headers as
+    every other authenticated platform call; the validator config supplies
+    ``chain_network`` and ``platform_instance_id`` (and the base URL,
+    unless overridden).
+    """
+    config = load_validator_config(config_path)
+    base_url = platform_base_url or config.platform.base_url
     token = read_api_token_or_exit(env_var=api_token_env, explicit=api_token)
-    echo_info(f"registering ingest endpoint {ingest_url}")
+    echo_info(
+        f"registering ingest endpoint {ingest_url} "
+        f"(env={config.platform.platform_instance_id}/{config.chain.network.value})"
+    )
     try:
         with httpx.Client(timeout=30.0) as http:
             result = register_ingest_endpoint(
-                base_url=platform_base_url,
+                base_url=base_url,
                 api_token=token,
                 ingest_endpoint_url=ingest_url,
+                chain_network=config.chain.network.value,
+                platform_instance_id=config.platform.platform_instance_id,
                 http=http,
             )
     except RegistrationError as exc:
