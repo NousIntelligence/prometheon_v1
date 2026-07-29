@@ -75,8 +75,14 @@ the old one):
 export PROMETHEON_VALIDATOR_API_TOKEN="<long-lived token>"
 uv run prometheon ingest register-endpoint \
     --ingest-url https://ingest.<your-domain>/ \
-    --platform-base-url https://subnet-api.bitfan.ai
+    --config ~/prometheon-validator.toml
 ```
+
+The registration call carries the same environment-binding headers
+(`X-Prometheon-Chain-Network` / `X-Prometheon-Platform-Instance-Id`) as every
+other authenticated platform call — the CLI reads them, and the platform base
+URL, from the config. The signed-request header set is not required for this
+endpoint; bearer token plus the binding headers is sufficient.
 
 Re-running with the same URL is a no-op; a new URL rotates atomically.
 **Register before the platform enables delivery** so you receive the stream
