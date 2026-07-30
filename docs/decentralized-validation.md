@@ -100,19 +100,54 @@ reads.
 
 ## Catch-up and completeness
 
-- **Backfill** happens automatically at the library level when the runtime is
-  behind: pages of `GET /events/backfill` deliver the exact same canonical
-  bytes push would have, validated and appended through the same store
-  primitive — pushed and backfilled records are byte-indistinguishable at
-  rest. The read calls use your validator token's `events:read` scope.
-- **Day digests** are published by ~00:45 UTC for the previous day. The
-  runtime's completeness check recomputes the local hash and count per
-  (family, epoch) and compares; check at 00:50, alarm at 01:30 on a missing
-  or mismatched digest.
-- **Retention**: the store's janitor prunes `activity`/`exclusion` records
-  older than 23 epochs (the scoring window needs 21); `identity`/`group` are
-  state families and keep full history. Pruning never moves the stream
-  cursor.
+Both are **operator-run today** — nothing schedules them yet. Run them by
+hand after an incident, and from cron during the shadow phase; automatic
+scheduling arrives with the runtime automation glue.
+
+**Backfill** pulls what you are missing: pages of `GET /events/backfill`
+deliver the exact same canonical bytes push would have, validated and
+appended through the same store primitive — pushed and backfilled records
+are byte-indistinguishable at rest. Reads use your validator token's
+`events:read` scope.
+
+```bash
+# all four families; add --family activity (repeatable) to narrow
+uv run prometheon ingest backfill \
+    --config ~/prometheon-validator.toml \
+    --db .validator-state/events.sqlite
+```
+
+Run it after a `409 {"code": "gap"}` ack, after any outage, and once when
+joining a stream that is already running. It is safe to re-run: each pass
+resumes from your stored cursor and stops when the platform has nothing
+more (an empty page whose `next_seq` equals your position means "not
+materialized yet — retry later").
+
+**Day digests** are published by ~00:45 UTC for the previous day. The
+completeness check recomputes the local hash and count per (family, epoch)
+and compares them against the platform's signature:
+
+```bash
+uv run prometheon ingest check-day \
+    --config ~/prometheon-validator.toml \
+    --db .validator-state/events.sqlite \
+    --date 2026-07-14
+```
+
+Exit `0` means every family matched; **exit `3` is the completeness alarm**
+and prints the local vs digest hash and count on stderr. Check at 00:50 and
+alarm at 01:30 on a missing or mismatched digest.
+**Retention** policy: `activity`/`exclusion` records are prunable after 23
+epochs (the scoring window needs 21); `identity`/`group` are state families
+and keep full history. Pruning never moves the stream cursor, so a pruned
+store still knows where it is in each stream.
+
+Nothing prunes automatically yet — the store implements the policy but no
+scheduler calls it, so expect the database and the replay-nonce table to
+grow until the automation glue lands. That costs disk, never correctness.
+Note the interaction to come: `check-day` compares against what is stored,
+so once pruning is active a day older than the retention window will read
+as incomplete. Keep completeness checks inside the window.
 
 ---
 
@@ -175,9 +210,10 @@ flip.
 
 | Symptom | Meaning | Action |
 |---|---|---|
-| `409 {"code": "gap"}` acks in the service log | You are behind the frontier | Normal — the backfill client fills the range; investigate only if it persists |
+| `409 {"code": "gap"}` acks in the service log | You are behind the frontier | Run `ingest backfill` to fill the range; investigate only if the gap persists after a successful catch-up |
 | `ALARM: injection evidence at seq N` | A record with an invalid/unregistered device signature is inside the signed stream | Report to the platform team with the seq — only the platform could have put it there |
 | `ALARM: verdict count mismatch` | Held verdicts for an epoch disagree with the sealed marker | Report with the epoch; do not suppress |
-| Digest mismatch at 01:30 check | Local bytes differ from the signed day digest | Wire-contract incident: report `family + epoch + local vs digest hash` |
+| `ingest check-day` exits 3 | Local bytes differ from the signed day digest | Run `ingest backfill` first (a gap explains most mismatches); if it survives a clean catch-up it is a wire-contract incident — report `family + epoch + local vs digest hash` |
+| `ENVIRONMENT_MISMATCH` from any platform call | The environment-binding headers are missing or name the wrong environment | Check `chain.network` and `platform.platform_instance_id` in your config match the environment your token was issued for |
 | `verdicts_complete` missing past ~02:05 UTC | Platform sealing run is late | Score later, or `--allow-missing-marker` per the documented fallback |
 | `test_publisher_key_refused` | The derivable fixture key reached a live config | Remove it from the trusted keys — it must never sign live traffic |
