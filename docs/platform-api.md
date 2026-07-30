@@ -26,6 +26,47 @@ status:read
 
 A miner token must not grant snapshot access; a validator token must not grant miner identity mutation. The Platform enforces scope server-side.
 
+Event-stream (Decentralized Validation) scopes ride the same long-lived validator token:
+
+```text
+ingest:register
+events:read
+```
+
+### Environment binding (required)
+
+A bearer token alone is not enough. Every authenticated call must also identify
+the environment it belongs to, and the Platform rejects a call that does not
+with `400 ENVIRONMENT_MISMATCH`. This is what stops a testnet validator from
+ever reading or writing production state.
+
+The binding travels one of two ways, and exactly one of them applies per call:
+
+- **In the body**, when the body is a signed envelope — the verify, rotate, and
+  recover payloads each carry `chain_network` and `platform_instance_id`
+  themselves, and the nonce request body carries them too. Those calls need no
+  extra headers.
+- **In headers**, for everything else — any `GET` (no body to carry them) and
+  any `POST` whose body is not one of those envelopes:
+
+  ```text
+  X-Prometheon-Chain-Network: <finney|test|local>
+  X-Prometheon-Platform-Instance-Id: <bitfan-production|bitfan-staging|bitfan-local>
+  ```
+
+Endpoints in the header group today: the snapshot reads, the event read API
+(`GET /events/backfill`, `GET /events/digest`), and ingest-endpoint
+registration (`POST /identity/ingest-endpoint`, whose body is just the URL).
+The signed-request header set is a *separate*, additional requirement that only
+the snapshot API imposes — see below.
+
+`GET /keys` is the one endpoint that takes no authentication at all: it is
+public by design, so revoked keys stay verifiable to anyone.
+
+When in doubt, send the headers. They are free, they cannot conflict with a
+body that repeats them, and omitting them is the single most common way a new
+call site fails its first live request.
+
 ### Bootstrap tokens (first verify)
 
 `/api/v1/prometheon/identity/verify` is now the canonical first-time entry: a fresh BitFan user does not need any pre-existing `*_verified` flag to call it. The flow:
@@ -83,13 +124,17 @@ Request body:
 {
   "role": "miner",
   "netuid": 123,
+  "chain_network": "finney",
+  "platform_instance_id": "bitfan-production",
   "username": "example_user",
   "email": "user@example.com",
   "hotkey_ss58": "5F..."
 }
 ```
 
-Headers: `Authorization: Bearer <api_token>`.
+Headers: `Authorization: Bearer <api_token>`. The environment binding rides in
+the body here, so the binding headers are not needed (see
+[Environment binding](#environment-binding-required)).
 
 Response:
 
@@ -168,9 +213,15 @@ X-Prometheon-Hotkey: <validator_hotkey_ss58>
 X-Prometheon-Nonce: 0x<≥16 random bytes lowercase hex>
 X-Prometheon-Timestamp: <ISO 8601 UTC Z>
 X-Prometheon-Request-Signature: 0x<128 lowercase hex chars>
+X-Prometheon-Chain-Network: <finney|test|local>
+X-Prometheon-Platform-Instance-Id: <bitfan-production|bitfan-staging|bitfan-local>
 ```
 
 The signature is computed over the `PROMETHEON_API_REQUEST_V1` canonical payload (which binds method, exact path, query hash, body hash, timestamp, nonce, environment fields, role, mode, validator hotkey, and API-token hash).
+
+The last two are the environment binding: a snapshot call is a `GET` with no
+body, so there is nothing else to carry it. The same values are inside the
+signed payload, so sending them changes no signature coverage.
 
 Skew window: 300 seconds. Nonce TTL: 600 seconds.
 
@@ -220,7 +271,96 @@ Cross-page invariants the validator enforces:
 
 ---
 
-## Error Envelope
+## Event Stream Endpoints
+
+The Decentralized Validation endpoints the validator calls. Delivery itself runs
+the other way — the Platform `POST`s signed batches to the validator's
+registered ingest URL — and is documented in
+[the operator guide](./decentralized-validation.md).
+
+All three carry `Authorization: Bearer` **plus the binding headers**; none of
+them require the signed-request header set.
+
+### `POST /api/v1/prometheon/identity/ingest-endpoint`
+
+Scope: `ingest:register`. Body:
+
+```json
+{ "ingest_endpoint_url": "https://ingest.example.com/" }
+```
+
+`data`: `{ endpoint_id, rotated, unchanged }`. The Platform binds the endpoint
+server-side to the token's verified hotkey. Re-registering the same URL is a
+no-op (`unchanged: true`); a different URL rotates atomically (`rotated: true`).
+The URL must be public HTTPS with a publicly-trusted certificate — an SSRF guard
+refuses anything else, and redirects count as delivery failure.
+
+### `GET /api/v1/prometheon/events/backfill?family=&from_seq=&limit=`
+
+Scope: `events:read`. `data`:
+
+```text
+{ family, from_seq, records: [ { seq, event_id, canonical_bytes } ], next_seq }
+```
+
+`canonical_bytes` is the `0x`-hex of the *same* bytes delivery pushes — stored
+once, byte-identical — so a backfilled record and a pushed one are
+indistinguishable at rest, and either can be hashed into the day digest.
+`from_seq` is inclusive. The page is contiguous and gap-free: it stops at the
+first gap or not-yet-materialized record. An empty page whose `next_seq` equals
+the requested `from_seq` means *retry later* — normal on a fresh deployment,
+where records materialize only after the Platform's delivery worker runs.
+`limit` defaults to 500 and is capped at 1000.
+
+### `GET /api/v1/prometheon/events/digest?family=&epoch=YYYY-MM-DD`
+
+Scope: `events:read`. `data`:
+
+```text
+{ family, epoch_id, records_hash, record_count, signature, platform_key_id, signed_at }
+```
+
+The signed day digest, published by ~00:45 UTC for the previous day.
+`records_hash` is `SHA-256` over the concatenated record canonical bytes in
+`seq` order (an empty day hashes the empty string), and `signature` covers
+`b"PROMETHEON_DAY_DIGEST_V1\n" + JCS({domain, family, epoch_id, records_hash,
+record_count})`.
+
+Verify against the key valid at `signed_at`, **not** against whichever key is
+currently active: revoked keys stay listed precisely so historical digests keep
+verifying across a rotation. The opposite holds for push batches, which are
+always signed by the active key.
+
+### `GET /api/v1/prometheon/keys`
+
+Unauthenticated by design — revoked-key transparency means anyone can check a
+signature. Returns the Ed25519 registry used for both snapshot signing and
+event-stream publishing; it is one registry, not two.
+
+---
+
+## Response Envelopes
+
+Every response — success or failure — is wrapped. **Payload fields are never at
+the top level of the body.** A reader that skips the unwrap sees
+`success`/`data`/`meta` where it expected content, and reports the payload as
+malformed rather than as enveloped; that mistake has cost this repo two
+live-broken releases.
+
+### Success
+
+```json
+{
+  "success": true,
+  "data": { "...the endpoint's payload..." },
+  "meta": {}
+}
+```
+
+Read the payload from `data`. Do not infer success from the HTTP status alone:
+treat a `2xx` whose body says `"success": false` as the failure it declares.
+
+### Error
 
 Every non-2xx response carries a JSON envelope of the following shape:
 
