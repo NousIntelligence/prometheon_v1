@@ -41,6 +41,7 @@ from prometheon.events.backfill import (
 from prometheon.events.ingest import IngestConfig, create_ingest_app
 from prometheon.events.pipeline import (
     MissingVerdictsError,
+    build_parity_report,
     diff_miner_records,
     score_event_stream,
 )
@@ -378,13 +379,28 @@ def check_day(
     default=None,
     help="Snapshot-derived miner records (JSON list) to shadow-diff against.",
 )
+@click.option(
+    "--parity-report",
+    "parity_report_path",
+    type=click.Path(dir_okay=False, path_type=Path),
+    default=None,
+    help="Write the per-user daily scores for the epoch to this file.",
+)
 def score(
     db_path: Path,
     scoring_date: str,
     allow_missing_marker: bool,
     snapshot_json: Path | None,
+    parity_report_path: Path | None,
 ) -> None:
-    """Recompute miner records from the local stream; optionally shadow-diff."""
+    """Recompute miner records from the local stream; optionally shadow-diff.
+
+    ``--parity-report`` writes the per-user daily scores for the epoch as
+    ``{epoch, scores: [{user_ref_evt, daily_score}], scores_hash}``. Use it
+    rather than pulling the numbers out of the library by hand: the file
+    comes from the same code path that feeds the weights, so a parity
+    comparison is measuring what the validator would actually submit.
+    """
     with EventStore(db_path) as store:
         try:
             result = score_event_stream(
@@ -410,6 +426,15 @@ def score(
         click.echo(
             f"ALARM: injection evidence at seq {verdict.seq} ({verdict.signature_status.value})",
             err=True,
+        )
+
+    if parity_report_path is not None:
+        report = build_parity_report(result)
+        parity_report_path.parent.mkdir(parents=True, exist_ok=True)
+        parity_report_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+        echo_info(
+            f"parity report: {len(report['scores'])} users scored for {scoring_date} "
+            f"({report['scores_hash'][:18]}…) → {parity_report_path}"
         )
 
     click.echo(

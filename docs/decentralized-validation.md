@@ -180,7 +180,32 @@ uv run prometheon ingest score --db … --date … \
     --snapshot-json snapshot-miners.json
 ```
 
-exits `0` on parity and `3` on mismatch, printing per-miner evidence. Known,
+exits `0` on parity and `3` on mismatch, printing per-miner evidence.
+
+For the per-user layer, add `--parity-report`:
+
+```bash
+uv run prometheon ingest score --db … --date 2026-07-29 \
+    --parity-report parity-2026-07-29.json
+```
+
+```json
+{
+  "epoch": "2026-07-29",
+  "scores": [ { "user_ref_evt": "usr_evt_…", "daily_score": 8 } ],
+  "scores_hash": "0x…"
+}
+```
+
+Rows are sorted by `user_ref_evt` and `scores_hash` is SHA-256 over the
+canonical bytes of `{epoch, scores}`, so two implementations that agree produce
+byte-identical output and one hash comparison settles a day. **Use this rather
+than pulling per-user numbers out of the library by hand** — the file comes from
+the same code path that feeds the weights, so what you compare is what the
+validator would actually submit. A hand-rolled extraction once reported a
+correct scoring run as zeros.
+
+Known,
 bounded, non-alarming delta sources during shadow: the 21-day genesis ramp
 (windows spanning Stage-1 start converge only after 21 days of stream
 history) and the documented ~5-minute day-close attribution edge. Anything
