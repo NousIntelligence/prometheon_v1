@@ -260,15 +260,19 @@ def backfill(
             for family in _families(selected_families):
                 before = store.last_stored_seq(family)
                 try:
-                    added = client.catch_up(store, family)
+                    result = client.catch_up(store, family)
                 except BackfillError as exc:
                     raise click.ClickException(f"{family.value}: {exc}") from exc
-                total += added
+                total += result.appended
                 echo_info(
-                    f"{family.value}: +{added} records "
-                    f"(seq {before} → {store.last_stored_seq(family)})"
+                    f"{family.value}: +{result.appended} records (seq {before} → {result.last_seq})"
                 )
     echo_success(f"backfill complete: {total} records added")
+    # Reaching the end of the stream is not proof of having all of it: the
+    # read API answers "nothing at your position" identically whether you
+    # are current or the platform simply has not materialized the next
+    # record. Only the signed digest settles it.
+    echo_info("run 'ingest check-day' to confirm a day is complete")
 
 
 @ingest.command(name="check-day")

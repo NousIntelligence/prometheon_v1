@@ -37,6 +37,9 @@ answers with a bare body certifies nothing.
 from __future__ import annotations
 
 import hashlib
+import re
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Final
 
@@ -71,12 +74,35 @@ TEST_PUBLISHER_PUBKEY_HEX: Final[str] = (
 BACKFILL_PATH: Final[str] = "/api/v1/prometheon/events/backfill"
 DIGEST_PATH: Final[str] = "/api/v1/prometheon/events/digest"
 DEFAULT_PAGE_LIMIT: Final[int] = 500
+# ingest-contract.md: "`limit` default 500, capped at 1000."
+MAX_PAGE_LIMIT: Final[int] = 1000
+DEFAULT_MAX_RETRIES: Final[int] = 3
+DEFAULT_RETRY_BASE_SECONDS: Final[float] = 0.5
 
 _EMPTY_SHA256: Final[str] = "0x" + hashlib.sha256(b"").hexdigest()
+_SHA256_HEX_RE: Final[re.Pattern[str]] = re.compile(r"^0x[0-9a-f]{64}$")
+_RETRY_STATUS: Final[frozenset[int]] = frozenset({429, 502, 503, 504})
 
 
 class BackfillError(RuntimeError):
-    """The read API returned something the contract forbids."""
+    """The read API returned something the contract forbids.
+
+    Carries the HTTP status and the platform's error ``code`` when the
+    failure came from a response, so a caller can tell "this day's digest
+    is not published yet" from "this token cannot read events" without
+    parsing the message.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int | None = None,
+        error_code: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.error_code = error_code
 
 
 class DigestVerificationError(RuntimeError):
@@ -91,6 +117,10 @@ class BackfillConfig:
     binding every authenticated platform call must present (see
     :mod:`prometheon.platform.wire`); they are required, not optional, so
     a client cannot be constructed that the platform would reject.
+
+    ``max_retries`` covers the generic 429 backoff the platform asked for:
+    there is no server-side rate limit on the read endpoints today, and
+    this exists so a future one never breaks catch-up.
     """
 
     base_url: str
@@ -100,6 +130,20 @@ class BackfillConfig:
     platform_instance_id: str
     page_limit: int = DEFAULT_PAGE_LIMIT
     allow_test_publisher_key: bool = False
+    max_retries: int = DEFAULT_MAX_RETRIES
+    retry_base_seconds: float = DEFAULT_RETRY_BASE_SECONDS
+
+    def __post_init__(self) -> None:
+        # A page_limit of 0 would make catch-up a no-op that reports
+        # success — indistinguishable from "caught up" — and anything
+        # above the documented cap is silently clamped server-side, so the
+        # local number would stop describing what actually happens.
+        if not 1 <= self.page_limit <= MAX_PAGE_LIMIT:
+            raise ValueError(
+                f"page_limit must be within 1..{MAX_PAGE_LIMIT} (got {self.page_limit})"
+            )
+        if self.max_retries < 0:
+            raise ValueError(f"max_retries must not be negative (got {self.max_retries})")
 
 
 @dataclass(frozen=True)
@@ -112,6 +156,23 @@ class SignedDayDigest:
     record_count: int
     platform_key_id: str
     signed_at: str
+
+
+@dataclass(frozen=True)
+class CatchUpResult:
+    """Outcome of a catch-up pass: rows added and where the cursor now sits.
+
+    Deliberately *not* a completeness claim. Catch-up ends when the read
+    API serves an empty page at our position, and that single response
+    covers both "you have everything the platform has" and "the delivery
+    worker has not materialized the next record yet" — the contract
+    defines one meaning for it, ``retry later``, and the wire cannot tell
+    the two apart. Only a signed day digest settles completeness, which is
+    what :meth:`BackfillClient.check_day` is for.
+    """
+
+    appended: int
+    last_seq: int
 
 
 @dataclass(frozen=True)
@@ -139,6 +200,15 @@ def verify_signed_digest(
     ``{family, epoch_id, records_hash, record_count, signature,
     platform_key_id, signed_at}``. The signature covers the canonical
     envelope ``{domain, family, epoch_id, records_hash, record_count}``.
+
+    **A revoked key still verifies a digest it signed while valid.** The
+    key registry keeps revoked keys listed precisely so historical digests
+    keep verifying across a rotation (pinned answer B5); the validity
+    window at ``signed_at`` is the real gate, not ``status``. Requiring
+    ``status == "active"`` here would make every day digest older than a
+    rotation permanently unverifiable and turn the completeness gate into
+    a standing false alarm. The push path is the opposite — a revoked key
+    never signs *new* traffic, so the ingest service does require active.
     """
     required = {
         "family",
@@ -156,13 +226,22 @@ def verify_signed_digest(
     key = trusted_keys.get(key_id)
     if key is None:
         raise DigestVerificationError(f"unknown platform_key_id {key_id!r}")
-    if key.status != "active":
-        raise DigestVerificationError(f"platform key {key_id!r} is revoked")
     signed_at = payload["signed_at"]
     if not isinstance(signed_at, str) or not (key.not_before <= signed_at <= key.not_after):
-        raise DigestVerificationError("digest signed_at outside key validity window")
+        raise DigestVerificationError(
+            f"digest signed_at {signed_at!r} outside the validity window of key {key_id!r} "
+            f"({key.not_before} … {key.not_after})"
+        )
     if key.public_key == TEST_PUBLISHER_PUBKEY_HEX and not allow_test_publisher_key:
         raise DigestVerificationError("test publisher key refused for digests")
+    records_hash = payload["records_hash"]
+    # Pinned before use: an unparseable hash would otherwise sail through
+    # signature verification and surface later as an unexplained
+    # completeness mismatch against a locally well-formed hash.
+    if not isinstance(records_hash, str) or not _SHA256_HEX_RE.match(records_hash):
+        raise DigestVerificationError(
+            f"digest records_hash is not lowercase 0x-prefixed SHA-256 hex: {records_hash!r}"
+        )
 
     envelope = {
         "domain": DOMAIN_DAY_DIGEST,
@@ -205,9 +284,16 @@ def verify_signed_digest(
 class BackfillClient:
     """Pull-side catch-up against the platform read API."""
 
-    def __init__(self, config: BackfillConfig, http: httpx.Client) -> None:
+    def __init__(
+        self,
+        config: BackfillConfig,
+        http: httpx.Client,
+        *,
+        sleeper: Callable[[float], None] = time.sleep,
+    ) -> None:
         self._config = config
         self._http = http
+        self._sleep = sleeper
 
     def _get(self, path: str, params: dict[str, Any]) -> dict[str, Any]:
         """GET a read-API path and return the unwrapped payload.
@@ -215,36 +301,71 @@ class BackfillClient:
         Carries the environment binding (omitting it earns
         ``400 ENVIRONMENT_MISMATCH``) and unwraps the success envelope, so
         callers see the payload fields directly. Failures keep the
-        platform's error code in the message — that code is usually the
-        entire diagnosis.
+        platform's error code in the message and on the exception — that
+        code is usually the entire diagnosis.
+
+        Retries a rate-limit or transient-gateway status with exponential
+        backoff, honouring ``Retry-After`` when the platform sends one.
+        There is no server-side read limit today; this exists so a future
+        one never breaks catch-up.
         """
-        response = self._http.get(
-            self._config.base_url.rstrip("/") + path,
-            params=params,
-            headers=bearer_auth_headers(
-                api_token=self._config.api_token,
-                chain_network=self._config.chain_network,
-                platform_instance_id=self._config.platform_instance_id,
-            ),
+        url = self._config.base_url.rstrip("/") + path
+        headers = bearer_auth_headers(
+            api_token=self._config.api_token,
+            chain_network=self._config.chain_network,
+            platform_instance_id=self._config.platform_instance_id,
         )
-        try:
-            body: Any = response.json()
-        except ValueError:
-            body = response.text
-        if response.status_code != 200 or is_error_envelope(body):
-            raise BackfillError(
-                f"read API {path} failed: "
-                f"{describe_error_body(body, status_code=response.status_code)}"
-            )
-        if not isinstance(body, dict):
-            raise BackfillError("read API body is not an object")
-        payload = unwrap_success_envelope(body)
-        if not isinstance(payload, dict):
-            raise BackfillError(
-                f"read API {path} returned an envelope whose 'data' is "
-                f"{type(payload).__name__}, not an object"
-            )
-        return payload
+        attempts = self._config.max_retries + 1
+        for attempt in range(1, attempts + 1):
+            try:
+                response = self._http.get(url, params=params, headers=headers)
+            except httpx.HTTPError as exc:
+                # Transport failures are contract failures from the
+                # caller's point of view; they must not escape as a bare
+                # httpx error past every ``except BackfillError``.
+                raise BackfillError(f"read API {path} unreachable: {exc}") from exc
+
+            if response.status_code in _RETRY_STATUS and attempt < attempts:
+                self._sleep(self._retry_delay(response, attempt))
+                continue
+
+            try:
+                body: Any = response.json()
+            except ValueError:
+                body = response.text
+            if response.status_code != 200 or is_error_envelope(body):
+                raise BackfillError(
+                    f"read API {path} failed: "
+                    f"{describe_error_body(body, status_code=response.status_code)}",
+                    status_code=response.status_code,
+                    error_code=_error_code_of(body),
+                )
+            if not isinstance(body, dict):
+                raise BackfillError(
+                    "read API body is not an object", status_code=response.status_code
+                )
+            payload = unwrap_success_envelope(body)
+            if not isinstance(payload, dict):
+                raise BackfillError(
+                    f"read API {path} returned an envelope whose 'data' is "
+                    f"{type(payload).__name__}, not an object",
+                    status_code=response.status_code,
+                )
+            return payload
+
+        raise BackfillError(f"read API {path} exhausted {attempts} attempts")
+
+    def _retry_delay(self, response: httpx.Response, attempt: int) -> float:
+        """Backoff before retry ``attempt``; ``Retry-After`` wins if sane."""
+        header = response.headers.get("Retry-After")
+        if header is not None:
+            try:
+                requested = float(header)
+            except ValueError:
+                requested = -1.0
+            if 0 <= requested <= 60:
+                return requested
+        return self._config.retry_base_seconds * (2.0 ** (attempt - 1))
 
     def fetch_page(self, family: EventFamily, from_seq: int) -> dict[str, Any]:
         return self._get(
@@ -262,28 +383,49 @@ class BackfillClient:
         family: EventFamily,
         *,
         max_pages: int = 1000,
-    ) -> int:
-        """Pull pages until the read API has nothing more; returns rows added.
+    ) -> CatchUpResult:
+        """Pull pages until the read API has nothing more.
 
         Every page's records are decoded from ``canonical_bytes``, strict-
-        parsed, envelope-validated, checked byte-identical against their
-        own decode (the bytes ARE the record), and appended contiguously.
+        parsed, envelope-validated, checked byte-identical against the
+        delivered bytes (the bytes ARE the record), and appended
+        contiguously.
+
+        Ends when the read API serves an empty page at our position; that
+        is not a completeness proof (see :class:`CatchUpResult`) — the day
+        digest is. Records already appended stay appended if a later page
+        fails, so a failed pass is always safe to re-run.
         """
         appended = 0
         for _page_index in range(max_pages):
             cursor = store.last_stored_seq(family)
-            page = self.fetch_page(family, cursor + 1)
+            from_seq = cursor + 1
+            page = self.fetch_page(family, from_seq)
             records = page.get("records")
             next_seq = page.get("next_seq")
             if not isinstance(records, list) or not isinstance(next_seq, int):
                 raise BackfillError("backfill page malformed")
+            self._check_page_echo(page, family, from_seq)
             if not records:
-                # next_seq == from_seq means not-yet-materialized: caller
-                # retries later. Anything else with no records is done.
-                return appended
+                if next_seq != from_seq:
+                    # The documented empty page is next_seq == from_seq
+                    # ("retry later"). A forward jump with no records says
+                    # the platform's frontier is past a range it will not
+                    # serve — records aged out of its retention, most
+                    # likely, after a very long outage. Skipping ahead
+                    # would leave a silent hole that every affected day
+                    # digest then fails on, with nothing pointing at the
+                    # cause. Stop and say so instead.
+                    raise BackfillError(
+                        f"read API served no records for {family.value} at seq {from_seq} but "
+                        f"moved the cursor to {next_seq}: seq {from_seq}..{next_seq - 1} is "
+                        "unavailable and cannot be recovered by backfill — escalate rather "
+                        "than skipping the range"
+                    )
+                return CatchUpResult(appended=appended, last_seq=cursor)
 
             prepared: list[PreparedRecord] = []
-            expected_seq = cursor + 1
+            expected_seq = from_seq
             for entry in records:
                 if not isinstance(entry, dict):
                     raise BackfillError("backfill entry malformed")
@@ -295,22 +437,72 @@ class BackfillClient:
                     )
                 if not isinstance(blob_hex, str) or not blob_hex.startswith("0x"):
                     raise BackfillError("backfill canonical_bytes malformed")
-                blob = bytes.fromhex(blob_hex[2:])
-                raw = load_record_mapping(blob)
-                _, view = validate_event_record(raw)
+                # Everything from here to the append is decode + strict
+                # validation of platform-supplied bytes. Any failure is a
+                # contract violation and is reported as one, rather than
+                # escaping as a ValueError from bytes.fromhex or a
+                # validation error from the record parser.
+                try:
+                    blob = bytes.fromhex(blob_hex[2:])
+                    raw = load_record_mapping(blob)
+                    _, view = validate_event_record(raw)
+                except (ValueError, EventStoreError) as exc:
+                    raise BackfillError(
+                        f"backfill record at seq {seq} did not decode: {exc}"
+                    ) from exc
                 if view.family is not family or view.seq != seq:
                     raise BackfillError(f"backfill record at seq {seq} does not match its envelope")
                 if entry.get("event_id") != view.event_id:
                     raise BackfillError(f"backfill event_id mismatch at seq {seq}")
-                prepared.append(PreparedRecord.from_mapping(raw, view))
+                record = PreparedRecord.from_mapping(raw, view)
+                # The contract promises these are the SAME bytes push
+                # delivers, stored once and byte-identical. Verify it here
+                # instead of storing a re-canonicalised variant: any
+                # difference would otherwise surface days later as an
+                # unexplained day-digest mismatch.
+                if record.canonical_bytes != blob:
+                    raise BackfillError(
+                        f"backfill record at seq {seq} is not canonical: the delivered bytes "
+                        "differ from their canonical re-encoding, so the platform's day digest "
+                        "cannot match any store that keeps them"
+                    )
+                prepared.append(record)
                 expected_seq += 1
+
+            if next_seq != expected_seq:
+                raise BackfillError(
+                    f"backfill page ends at seq {expected_seq - 1} but next_seq is {next_seq}; "
+                    "the page is documented contiguous, so the cursor to resume from is ambiguous"
+                )
 
             try:
                 store.append(family, prepared)
             except EventStoreError as exc:
                 raise BackfillError(f"backfill append failed: {exc}") from exc
             appended += len(prepared)
-        raise BackfillError("backfill did not converge within max_pages")
+        raise BackfillError(
+            f"backfill did not converge within {max_pages} pages ({appended} records stored, "
+            f"cursor at {store.last_stored_seq(family)}); re-run to continue"
+        )
+
+    @staticmethod
+    def _check_page_echo(page: dict[str, Any], family: EventFamily, from_seq: int) -> None:
+        """Confirm the page answers the request it echoes back.
+
+        For a non-empty page a wrong family or offset is caught per record;
+        for an empty page nothing else would notice, and an empty page is
+        exactly what decides "caught up" versus "retry later".
+        """
+        echoed_family = page.get("family")
+        if echoed_family is not None and echoed_family != family.value:
+            raise BackfillError(
+                f"backfill page is for family {echoed_family!r}, not {family.value!r}"
+            )
+        echoed_from = page.get("from_seq")
+        if echoed_from is not None and echoed_from != from_seq:
+            raise BackfillError(
+                f"backfill page starts at from_seq {echoed_from!r}, not the requested {from_seq}"
+            )
 
     def fetch_digest(self, family: EventFamily, epoch_id: str) -> SignedDayDigest:
         """Fetch and verify the signed digest for exactly this (family, epoch).
@@ -359,13 +551,29 @@ def compare_day(store: EventStore, digest: SignedDayDigest) -> CompletenessRepor
     )
 
 
+def _error_code_of(body: Any) -> str | None:
+    """The platform's error ``code``, when the body carries one."""
+    if isinstance(body, dict):
+        error = body.get("error")
+        if isinstance(error, dict) and isinstance(error.get("code"), str):
+            code: str = error["code"]
+            return code
+        if isinstance(body.get("code"), str):
+            flat: str = body["code"]
+            return flat
+    return None
+
+
 __all__ = [
     "BACKFILL_PATH",
+    "DEFAULT_MAX_RETRIES",
     "DEFAULT_PAGE_LIMIT",
     "DIGEST_PATH",
+    "MAX_PAGE_LIMIT",
     "BackfillClient",
     "BackfillConfig",
     "BackfillError",
+    "CatchUpResult",
     "CompletenessReport",
     "DigestVerificationError",
     "SignedDayDigest",
