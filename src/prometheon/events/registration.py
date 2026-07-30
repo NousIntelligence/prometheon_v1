@@ -7,13 +7,22 @@ token's verified hotkey; re-registering the same URL is a no-op and a new
 URL rotates atomically.
 
 Both platform wire conventions apply here and are taken from
-:mod:`prometheon.platform.wire`: the call carries the environment-binding
-headers (without them the platform rejects with ``ENVIRONMENT_MISMATCH``)
-and the response rides the success envelope, so ``endpoint_id`` lives
-under ``data``, never at the top level. Staging bring-up on 2026-07-22
-found this module violating both. The signed-request header set
-(hotkey/nonce/timestamp/signature) is *not* required on this endpoint —
-bearer token plus the two binding headers is sufficient.
+:mod:`prometheon.platform.wire`: the call is environment-bound, and the
+response rides the success envelope, so ``endpoint_id`` lives under
+``data``, never at the top level. Staging bring-up on 2026-07-22 found
+this module violating both.
+
+The environment binding is sent **in the body and in the headers**. The
+contract requires the body fields (r4 §2: every ``/identity/*`` route sits
+behind the guard and a body without them is rejected
+``ENVIRONMENT_MISMATCH``), while the headers are what staging accepted
+before r4 documented the body form. The guard reads either; sending both
+costs nothing and cannot conflict, since it is the same pair of values.
+The signed-request header set (hotkey/nonce/timestamp/signature) is *not*
+required on this endpoint.
+
+The platform binds the endpoint to the validator's **verified active
+hotkey**, resolved server-side — never to a value we claim.
 """
 
 from __future__ import annotations
@@ -74,7 +83,15 @@ def register_ingest_endpoint(
         )
     response = http.post(
         base_url.rstrip("/") + INGEST_ENDPOINT_PATH,
-        json={"ingest_endpoint_url": ingest_endpoint_url},
+        # The binding rides in the BODY here (ingest-contract r4 §2: "the
+        # two environment fields are REQUIRED"). The headers go too — the
+        # guard accepts either, they cost nothing, and the values are the
+        # same pair, so a request that satisfies one reading satisfies both.
+        json={
+            "ingest_endpoint_url": ingest_endpoint_url,
+            "chain_network": chain_network,
+            "platform_instance_id": platform_instance_id,
+        },
         headers=bearer_auth_headers(
             api_token=api_token,
             chain_network=chain_network,
