@@ -6,17 +6,14 @@ HTTPS ingest URL. The platform binds the endpoint server-side to the
 token's verified hotkey; re-registering the same URL is a no-op and a new
 URL rotates atomically.
 
-Wire requirements learned in staging bring-up (2026-07-22):
-
-- The call must carry the **environment-binding headers**
-  (``X-Prometheon-Chain-Network`` / ``X-Prometheon-Platform-Instance-Id``)
-  like every other authenticated platform call; without them the platform
-  rejects with ``ENVIRONMENT_MISMATCH``. The signed-request header set
-  (hotkey/nonce/timestamp/signature) is NOT required here — bearer token
-  plus the two binding headers is sufficient.
-- The response rides the standard success envelope
-  ``{"success": true, "data": {...}, "meta": {}}``; ``endpoint_id`` lives
-  under ``data``, never at the top level.
+Both platform wire conventions apply here and are taken from
+:mod:`prometheon.platform.wire`: the call carries the environment-binding
+headers (without them the platform rejects with ``ENVIRONMENT_MISMATCH``)
+and the response rides the success envelope, so ``endpoint_id`` lives
+under ``data``, never at the top level. Staging bring-up on 2026-07-22
+found this module violating both. The signed-request header set
+(hotkey/nonce/timestamp/signature) is *not* required on this endpoint —
+bearer token plus the two binding headers is sufficient.
 """
 
 from __future__ import annotations
@@ -26,7 +23,12 @@ from typing import Any, Final
 
 import httpx
 
-from prometheon.platform.client import _unwrap_success_envelope
+from prometheon.platform.wire import (
+    bearer_auth_headers,
+    describe_error_body,
+    is_error_envelope,
+    unwrap_success_envelope,
+)
 
 INGEST_ENDPOINT_PATH: Final[str] = "/api/v1/prometheon/identity/ingest-endpoint"
 
@@ -44,6 +46,15 @@ class RegistrationResult:
     endpoint_id: str
     rotated: bool
     unchanged: bool
+
+
+def _error_description(response: httpx.Response) -> str:
+    """Render a failed response, preserving the platform's error code."""
+    try:
+        body: Any = response.json()
+    except ValueError:
+        body = response.text
+    return describe_error_body(body, status_code=response.status_code)
 
 
 def register_ingest_endpoint(
@@ -64,21 +75,26 @@ def register_ingest_endpoint(
     response = http.post(
         base_url.rstrip("/") + INGEST_ENDPOINT_PATH,
         json={"ingest_endpoint_url": ingest_endpoint_url},
-        headers={
-            "Authorization": f"Bearer {api_token}",
-            "X-Prometheon-Chain-Network": chain_network,
-            "X-Prometheon-Platform-Instance-Id": platform_instance_id,
-        },
+        headers=bearer_auth_headers(
+            api_token=api_token,
+            chain_network=chain_network,
+            platform_instance_id=platform_instance_id,
+        ),
     )
     if response.status_code not in (200, 201):
         raise RegistrationError(
-            f"registration returned HTTP {response.status_code}: {response.text[:300]}",
+            f"registration failed: {_error_description(response)}",
             status_code=response.status_code,
         )
     body: Any = response.json()
     if not isinstance(body, dict):
         raise RegistrationError("registration response is not an object")
-    data = _unwrap_success_envelope(body)
+    if is_error_envelope(body):
+        raise RegistrationError(
+            f"registration failed: {_error_description(response)}",
+            status_code=response.status_code,
+        )
+    data = unwrap_success_envelope(body)
     if not isinstance(data, dict) or "endpoint_id" not in data:
         raise RegistrationError("registration response missing endpoint_id")
     return RegistrationResult(

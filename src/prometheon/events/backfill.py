@@ -22,8 +22,16 @@ day digest:
   A mismatch is the completeness alarm — identical for every validator,
   never resolved silently.
 
+Every call obeys both platform wire conventions from
+:mod:`prometheon.platform.wire` — environment-binding headers on the way
+out, success-envelope unwrapping on the way back. Staging bring-up found
+this module violating both, which had left the completeness gate and
+catch-up dead on arrival while the mocked tests passed.
+
 The HTTP client is injected (httpx), so tests drive the full code path
-through ``httpx.MockTransport`` with fixture bytes.
+through ``httpx.MockTransport`` with fixture bytes. Those mocks must
+reproduce the real envelope and assert the outgoing headers; a mock that
+answers with a bare body certifies nothing.
 """
 
 from __future__ import annotations
@@ -44,6 +52,12 @@ from prometheon.events.store import (
     load_record_mapping,
 )
 from prometheon.platform.signing import TrustedKeyMap
+from prometheon.platform.wire import (
+    bearer_auth_headers,
+    describe_error_body,
+    is_error_envelope,
+    unwrap_success_envelope,
+)
 from prometheon.security.canonical import (
     DOMAIN_DAY_DIGEST,
     CanonicalEncodingError,
@@ -71,11 +85,19 @@ class DigestVerificationError(RuntimeError):
 
 @dataclass(frozen=True)
 class BackfillConfig:
-    """Static configuration for the read-API client."""
+    """Static configuration for the read-API client.
+
+    ``chain_network`` and ``platform_instance_id`` are the environment
+    binding every authenticated platform call must present (see
+    :mod:`prometheon.platform.wire`); they are required, not optional, so
+    a client cannot be constructed that the platform would reject.
+    """
 
     base_url: str
     api_token: str
     trusted_keys: TrustedKeyMap
+    chain_network: str
+    platform_instance_id: str
     page_limit: int = DEFAULT_PAGE_LIMIT
     allow_test_publisher_key: bool = False
 
@@ -188,17 +210,41 @@ class BackfillClient:
         self._http = http
 
     def _get(self, path: str, params: dict[str, Any]) -> dict[str, Any]:
+        """GET a read-API path and return the unwrapped payload.
+
+        Carries the environment binding (omitting it earns
+        ``400 ENVIRONMENT_MISMATCH``) and unwraps the success envelope, so
+        callers see the payload fields directly. Failures keep the
+        platform's error code in the message — that code is usually the
+        entire diagnosis.
+        """
         response = self._http.get(
             self._config.base_url.rstrip("/") + path,
             params=params,
-            headers={"Authorization": f"Bearer {self._config.api_token}"},
+            headers=bearer_auth_headers(
+                api_token=self._config.api_token,
+                chain_network=self._config.chain_network,
+                platform_instance_id=self._config.platform_instance_id,
+            ),
         )
-        if response.status_code != 200:
-            raise BackfillError(f"read API returned {response.status_code} for {path}")
-        body = response.json()
+        try:
+            body: Any = response.json()
+        except ValueError:
+            body = response.text
+        if response.status_code != 200 or is_error_envelope(body):
+            raise BackfillError(
+                f"read API {path} failed: "
+                f"{describe_error_body(body, status_code=response.status_code)}"
+            )
         if not isinstance(body, dict):
             raise BackfillError("read API body is not an object")
-        return body
+        payload = unwrap_success_envelope(body)
+        if not isinstance(payload, dict):
+            raise BackfillError(
+                f"read API {path} returned an envelope whose 'data' is "
+                f"{type(payload).__name__}, not an object"
+            )
+        return payload
 
     def fetch_page(self, family: EventFamily, from_seq: int) -> dict[str, Any]:
         return self._get(
@@ -267,12 +313,25 @@ class BackfillClient:
         raise BackfillError("backfill did not converge within max_pages")
 
     def fetch_digest(self, family: EventFamily, epoch_id: str) -> SignedDayDigest:
+        """Fetch and verify the signed digest for exactly this (family, epoch).
+
+        The signature proves the platform authored *some* digest, not that
+        it answered the question asked: a correctly-signed digest for a
+        different day would otherwise let :meth:`check_day` report a day
+        complete that was never examined. Bind the answer to the request.
+        """
         payload = self._get(DIGEST_PATH, {"family": family.value, "epoch": epoch_id})
-        return verify_signed_digest(
+        digest = verify_signed_digest(
             payload,
             trusted_keys=self._config.trusted_keys,
             allow_test_publisher_key=self._config.allow_test_publisher_key,
         )
+        if digest.family is not family or digest.epoch_id != epoch_id:
+            raise BackfillError(
+                f"read API answered with a digest for {digest.family.value}/{digest.epoch_id} "
+                f"when {family.value}/{epoch_id} was requested"
+            )
+        return digest
 
     def check_day(
         self, store: EventStore, family: EventFamily, epoch_id: str
