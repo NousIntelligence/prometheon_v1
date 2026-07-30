@@ -345,7 +345,7 @@
       "target": {},
       "scoring_fields": {},
       "device_pubkey": "0x04417fbcc9d87dae9199fb675e8d8fdc5bbc5fc4607e50c299ff2cc4806ca94d527733f22640e86d365eb915fa1a0e33f77d8d2fa76087236ef1cac4e773a2671d",
-      "user_sig": "0x57c62febce480af4a362ba7684351fcd9f9afaadb936d81a19ba71e7d31eefce0240f5e75870a0626fa5691ba430a1878ec396d4de1bf6b4a6f0327d7e56086f",
+      "user_sig": "0xe5c7c8b74302f3593e09f77beac2d9ab6c141c15516c7ecb4f86f136b4608c219f616dcf931cfefe74717fe477cfec08f568006be9dbf976fddcf3792ee5da53",
       "core": {
         "domain": "PROMETHEON_EVENT_V1",
         "kind": "login",
@@ -385,7 +385,7 @@
       "target": {},
       "scoring_fields": {},
       "device_pubkey": "0x041e6cfed7eaedb240c76a930be5c0474418136500d576b913ac91469e79365a9819beecdd3044e04ad845d193041e372fa40d202e7a3b1042de5723252cda165b",
-      "user_sig": "0x657c3f273bd3571d4789c3a6ef8f5b4ddc49f4b236442b8ef270cc178bbc612c2e1fbfac99e5f409d7712fbcc3697a2a551e9c60659c017f560c6c4164b02139",
+      "user_sig": "0x2111adf76db822dc81722314042a88c1b35ad70e5580cf8c14f26231cb2ee1b7587836ae82c997dd42f5b2a079487f37f45b73ad0a1aadcb8f794c68bf8aadb4",
       "core": {
         "domain": "PROMETHEON_EVENT_V1",
         "kind": "login",
@@ -549,7 +549,7 @@
       "target": {},
       "scoring_fields": {},
       "device_pubkey": "0x04417fbcc9d87dae9199fb675e8d8fdc5bbc5fc4607e50c299ff2cc4806ca94d527733f22640e86d365eb915fa1a0e33f77d8d2fa76087236ef1cac4e773a2671d",
-      "user_sig": "0x8c8a37f5810f16a43273e12ffebe298e94dc4a27459f65895ccb91bdc278b6f61e684aaa12d6831995b52f71140349fc3f0b2b5e2fcad3463c631b4de7ed2971",
+      "user_sig": "0x62343fc5a04a2d6994c8e4f762577c1b5b1137d56923ddc6fd2008f5c0b6ee19e570645b93c36429fe719cfa5094d0abbd6fb5d596e46d7068fe38d1ef6a05f3",
       "core": {
         "domain": "PROMETHEON_EVENT_V1",
         "kind": "login",

@@ -343,13 +343,27 @@ def membership_at_day_close(user: str, epoch: str, joins: list[dict[str, Any]]) 
 def binding_at_day_start(
     leader: str, epoch: str, binding_events: list[dict[str, Any]]
 ) -> str | None:
-    """C2: the hotkey state at d@00:00:00Z from the core timestamps."""
+    """C2/§3.1: the leader's MINER hotkey at d@00:00:00Z.
+
+    Miner bindings only — a leader may also hold a validator hotkey, and a
+    validator bind (before, after, or while the miner binding is unbound)
+    never attributes group mass. Derived independently of the production
+    ledger, so agreement between the two is evidence rather than a tautology.
+    """
     day_start = _day(epoch)
-    state: str | None = None
+    per_hotkey: dict[str, datetime | None] = {}
     for event in sorted(
-        (b for b in binding_events if b["user_ref_evt"] == leader),
+        (b for b in binding_events if b["user_ref_evt"] == leader and b.get("role") == "miner"),
         key=lambda b: b["at"],
     ):
-        if _ts(event["at"]) <= day_start:
-            state = event["hotkey_ss58"] if event["kind"] == "bind" else None
-    return state
+        if _ts(event["at"]) > day_start:
+            continue
+        per_hotkey[event["hotkey_ss58"]] = _ts(event["at"]) if event["kind"] == "bind" else None
+
+    active = [(bound_at, hotkey) for hotkey, bound_at in per_hotkey.items() if bound_at]
+    if not active:
+        return None
+    # Determinism guard: greatest bound_at, ties on ascending hotkey_ss58.
+    active.sort(key=lambda item: item[1])
+    active.sort(key=lambda item: item[0], reverse=True)
+    return active[0][1]
