@@ -1,0 +1,18 @@
+{
+  "epoch": "2026-07-29",
+  "scores": [
+    {
+      "user_ref_evt": "usr_evt_1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a",
+      "daily_score": 1
+    },
+    {
+      "user_ref_evt": "usr_evt_7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c",
+      "daily_score": 22
+    },
+    {
+      "user_ref_evt": "usr_evt_f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0",
+      "daily_score": 0
+    }
+  ],
+  "scores_hash": "0xa1741cdf2ba4b6daa9869f48e3fba2193c11962e213c1b487ae4aed0a215362b"
+}

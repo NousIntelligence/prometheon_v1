@@ -1,8 +1,13 @@
 # Vendored fixture suite — Decentralized Validation
 
 **Source:** BitFan platform repo, `docs/specs/Subnet/fixtures/`
-**Pinned revision:** fixture release **r3** = BitFan commit `bce1b9b`
-**Vendored:** 2026-07-21
+**Pinned revision:** fixture release **r4** = BitFan commit `2a36285f`
+**Vendored:** 2026-07-30 (supersedes r3 = `bce1b9b`)
+
+The r4 release adds `parity-report/01-scores-hash/` and gives
+`attribution/01-vectors` a `role` field on `binding_events` plus a dual-role
+leader case. Everything else is a full regeneration — signatures re-rolled,
+so most files differ byte-for-byte without any semantic change.
 
 This directory is the shared, byte-identical conformance suite for the
 Decentralized Validation program (event-stream ingest + open score

@@ -1,0 +1,3 @@
+# parity-report 01-scores-hash
+
+`scores_hash` for the advisory parity report (ingest-contract §10). `scores_hash = "0x" + sha256(JCS({epoch, scores}))` — a PLAIN hash: no domain prefix, no signature. JCS sorts object keys (so each row canonicalizes `daily_score` before `user_ref_evt`) but PRESERVES array order, which is why the rows are contractually sorted ascending by `user_ref_evt`. Reproduce `canonical.bytes.hex` from `report.json`'s `epoch` + `scores`, then `scores_hash.hex` from those bytes; the platform recomputes the same value and rejects a mismatch with `parity_scores_hash_mismatch`. Note the third row: an explicit `daily_score: 0` is legal and hashes like any other row (the platform's diff treats absent and zero identically).

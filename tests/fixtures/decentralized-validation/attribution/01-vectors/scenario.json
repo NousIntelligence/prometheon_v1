@@ -48,26 +48,78 @@
       "kind": "member_joined",
       "user_ref_evt": "usr_evt_u1",
       "group_id": "grp-2"
+    },
+    {
+      "seq": 8,
+      "epoch_id": "2026-07-01",
+      "kind": "group_created",
+      "user_ref_evt": "usr_evt_leader_N",
+      "group_id": "grp-3"
+    },
+    {
+      "seq": 9,
+      "epoch_id": "2026-07-01",
+      "kind": "member_joined",
+      "user_ref_evt": "usr_evt_u5",
+      "group_id": "grp-3"
+    },
+    {
+      "seq": 10,
+      "epoch_id": "2026-07-01",
+      "kind": "member_joined",
+      "user_ref_evt": "usr_evt_u6",
+      "group_id": "grp-3"
+    },
+    {
+      "seq": 11,
+      "epoch_id": "2026-07-01",
+      "kind": "member_joined",
+      "user_ref_evt": "usr_evt_u7",
+      "group_id": "grp-3"
     }
   ],
   "binding_events": [
     {
+      "role": "miner",
       "kind": "bind",
       "user_ref_evt": "usr_evt_leader_L",
       "hotkey_ss58": "5F9MHZ78mgGtgAkYBAmj6KiCaK6tJphh75R4rmUWJT6cjoPS",
       "at": "2026-07-01T12:00:00Z"
     },
     {
+      "role": "miner",
       "kind": "bind",
       "user_ref_evt": "usr_evt_leader_M",
       "hotkey_ss58": "5E9XqbLCgv86mP66SmFUv9MAomPVd2GQjQdAH4rf45ymwngY",
       "at": "2026-06-01T00:00:00Z"
     },
     {
+      "role": "miner",
       "kind": "unbind",
       "user_ref_evt": "usr_evt_leader_M",
       "hotkey_ss58": "5E9XqbLCgv86mP66SmFUv9MAomPVd2GQjQdAH4rf45ymwngY",
       "at": "2026-07-03T12:00:00Z"
+    },
+    {
+      "role": "validator",
+      "kind": "bind",
+      "user_ref_evt": "usr_evt_leader_N",
+      "hotkey_ss58": "5GsBjPJh6y2NFmJYJ1ti93buusQhxhYGyNBcwbUVpXRLqe8P",
+      "at": "2026-05-01T00:00:00Z"
+    },
+    {
+      "role": "miner",
+      "kind": "bind",
+      "user_ref_evt": "usr_evt_leader_N",
+      "hotkey_ss58": "5Gk1659764VqcUfJFwAZ7jbYdfvYxkjUirKhBCm6D2PvkUm6",
+      "at": "2026-06-01T00:00:00Z"
+    },
+    {
+      "role": "validator",
+      "kind": "bind",
+      "user_ref_evt": "usr_evt_leader_N",
+      "hotkey_ss58": "5FFPDFr4HQAqXckJxkmgWuHBKrNH939Vay2DjUmZaLR347Jc",
+      "at": "2026-07-02T00:00:00Z"
     }
   ],
   "daily_scores": [
@@ -135,6 +187,51 @@
       "user_ref_evt": "usr_evt_u4",
       "epoch_id": "2026-07-03",
       "daily_score": 20
+    },
+    {
+      "user_ref_evt": "usr_evt_u5",
+      "epoch_id": "2026-07-01",
+      "daily_score": 20
+    },
+    {
+      "user_ref_evt": "usr_evt_u5",
+      "epoch_id": "2026-07-02",
+      "daily_score": 20
+    },
+    {
+      "user_ref_evt": "usr_evt_u5",
+      "epoch_id": "2026-07-03",
+      "daily_score": 20
+    },
+    {
+      "user_ref_evt": "usr_evt_u6",
+      "epoch_id": "2026-07-01",
+      "daily_score": 20
+    },
+    {
+      "user_ref_evt": "usr_evt_u6",
+      "epoch_id": "2026-07-02",
+      "daily_score": 20
+    },
+    {
+      "user_ref_evt": "usr_evt_u6",
+      "epoch_id": "2026-07-03",
+      "daily_score": 20
+    },
+    {
+      "user_ref_evt": "usr_evt_u7",
+      "epoch_id": "2026-07-01",
+      "daily_score": 20
+    },
+    {
+      "user_ref_evt": "usr_evt_u7",
+      "epoch_id": "2026-07-02",
+      "daily_score": 20
+    },
+    {
+      "user_ref_evt": "usr_evt_u7",
+      "epoch_id": "2026-07-03",
+      "daily_score": 20
     }
   ],
   "expected": {
@@ -190,6 +287,42 @@
       {
         "key": "usr_evt_u4|2026-07-03",
         "hotkey": "5E9XqbLCgv86mP66SmFUv9MAomPVd2GQjQdAH4rf45ymwngY"
+      },
+      {
+        "key": "usr_evt_u5|2026-07-01",
+        "hotkey": "5Gk1659764VqcUfJFwAZ7jbYdfvYxkjUirKhBCm6D2PvkUm6"
+      },
+      {
+        "key": "usr_evt_u5|2026-07-02",
+        "hotkey": "5Gk1659764VqcUfJFwAZ7jbYdfvYxkjUirKhBCm6D2PvkUm6"
+      },
+      {
+        "key": "usr_evt_u5|2026-07-03",
+        "hotkey": "5Gk1659764VqcUfJFwAZ7jbYdfvYxkjUirKhBCm6D2PvkUm6"
+      },
+      {
+        "key": "usr_evt_u6|2026-07-01",
+        "hotkey": "5Gk1659764VqcUfJFwAZ7jbYdfvYxkjUirKhBCm6D2PvkUm6"
+      },
+      {
+        "key": "usr_evt_u6|2026-07-02",
+        "hotkey": "5Gk1659764VqcUfJFwAZ7jbYdfvYxkjUirKhBCm6D2PvkUm6"
+      },
+      {
+        "key": "usr_evt_u6|2026-07-03",
+        "hotkey": "5Gk1659764VqcUfJFwAZ7jbYdfvYxkjUirKhBCm6D2PvkUm6"
+      },
+      {
+        "key": "usr_evt_u7|2026-07-01",
+        "hotkey": "5Gk1659764VqcUfJFwAZ7jbYdfvYxkjUirKhBCm6D2PvkUm6"
+      },
+      {
+        "key": "usr_evt_u7|2026-07-02",
+        "hotkey": "5Gk1659764VqcUfJFwAZ7jbYdfvYxkjUirKhBCm6D2PvkUm6"
+      },
+      {
+        "key": "usr_evt_u7|2026-07-03",
+        "hotkey": "5Gk1659764VqcUfJFwAZ7jbYdfvYxkjUirKhBCm6D2PvkUm6"
       }
     ],
     "miner_score": [
@@ -200,6 +333,10 @@
       {
         "hotkey": "5F9MHZ78mgGtgAkYBAmj6KiCaK6tJphh75R4rmUWJT6cjoPS",
         "score": 20
+      },
+      {
+        "hotkey": "5Gk1659764VqcUfJFwAZ7jbYdfvYxkjUirKhBCm6D2PvkUm6",
+        "score": 180
       }
     ],
     "active_members": [
@@ -210,6 +347,10 @@
       {
         "hotkey": "5F9MHZ78mgGtgAkYBAmj6KiCaK6tJphh75R4rmUWJT6cjoPS",
         "n": 0
+      },
+      {
+        "hotkey": "5Gk1659764VqcUfJFwAZ7jbYdfvYxkjUirKhBCm6D2PvkUm6",
+        "n": 3
       }
     ],
     "eligible": [
@@ -220,6 +361,10 @@
       {
         "hotkey": "5F9MHZ78mgGtgAkYBAmj6KiCaK6tJphh75R4rmUWJT6cjoPS",
         "ok": false
+      },
+      {
+        "hotkey": "5Gk1659764VqcUfJFwAZ7jbYdfvYxkjUirKhBCm6D2PvkUm6",
+        "ok": true
       }
     ]
   }
