@@ -20,12 +20,15 @@ result object for the caller to report.
 
 Shadow-mode support: :func:`diff_miner_records` compares event-derived
 MinerRecords against a snapshot-derived list and produces the per-miner
-evidence the parity gate (14 consecutive clean days) is judged on.
+evidence the parity gate is judged on (>= 30 consecutive days of zero
+unexplained divergence across >= 3 validators, measured by the platform
+through the advisory parity-report endpoint).
 """
 
 from __future__ import annotations
 
 import hashlib
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Final
@@ -49,6 +52,14 @@ from prometheon.mechanisms.phase1_growth.snapshot import MinerRecord
 from prometheon.security.canonical import to_canonical_bytes
 
 SCORING_WINDOW_DAYS: Final[int] = 14
+
+# scoring-port-contract §5: "ENGINE_VERSION stamps every computed score; a
+# rule change is an explicit, coordinated version bump — never silent." It
+# names the frozen rule set, so it tracks the contract revision the engine
+# implements — NOT this repo's version, which moves for unrelated reasons.
+ENGINE_VERSION: Final[str] = "scoring-port-r4/2a36285f"
+
+_EPOCH_RE: Final[re.Pattern[str]] = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 class MissingVerdictsError(RuntimeError):
@@ -85,6 +96,7 @@ def build_parity_report(scores: EventStreamScores) -> dict[str, Any]:
     canonical bytes of ``{epoch, scores}``, which reduces "was this day
     clean?" to one equality check instead of a row-by-row read.
     """
+    parse_epoch(scores.scoring_date)
     rows: list[dict[str, Any]] = sorted(
         (
             {"user_ref_evt": user, "daily_score": score}
@@ -97,6 +109,10 @@ def build_parity_report(scores: EventStreamScores) -> dict[str, Any]:
     return {
         **payload,
         "scores_hash": "0x" + hashlib.sha256(to_canonical_bytes(payload)).hexdigest(),
+        # Stamped for the audit trail, deliberately OUTSIDE the hashed
+        # payload: scores_hash covers {epoch, scores} exactly, and the
+        # platform recomputes it. Submission drops this field.
+        "engine_version": ENGINE_VERSION,
     }
 
 
@@ -127,9 +143,24 @@ class ShadowDiff:
         return lines
 
 
+def parse_epoch(value: str) -> str:
+    """Validate a ``YYYY-MM-DD`` epoch id and return it unchanged.
+
+    ``strptime`` alone accepts ``2026-7-4`` and hands back a date, so an
+    unpadded ``--date`` used to flow through scoring and come out as an
+    ``epoch`` string no platform record could ever match — an empty report
+    that looked like a clean one. The shape is part of the contract, so it
+    is checked as such.
+    """
+    if not _EPOCH_RE.match(value):
+        raise ValueError(f"epoch must be YYYY-MM-DD with zero padding, got {value!r}")
+    datetime.strptime(value, "%Y-%m-%d")  # rejects impossible dates
+    return value
+
+
 def window_epochs(scoring_date: str) -> list[str]:
     """The 14 epoch ids ending at (and including) ``scoring_date``."""
-    end = datetime.strptime(scoring_date, "%Y-%m-%d")
+    end = datetime.strptime(parse_epoch(scoring_date), "%Y-%m-%d")
     return [
         (end - timedelta(days=offset)).strftime("%Y-%m-%d")
         for offset in range(SCORING_WINDOW_DAYS - 1, -1, -1)
@@ -161,7 +192,10 @@ def score_event_stream(
         if core.get("kind") == "verdict":
             applies_to = core["applies_to_epoch"]
             user = exclusion_record["user_ref_evt"]
-            weight = core["weight_bp"]
+            # ingest-contract §5: "weight_bp ∈ {0,1250,2500,5000,10000};
+            # absent ⇒ 10000". Reading it as required turned a legal
+            # verdict into a KeyError that aborted the whole scoring run.
+            weight = core.get("weight_bp", FULL_WEIGHT_BP)
             existing = weights.get((user, applies_to))
             # At-most-one verdict per (user, epoch) is guaranteed; if a
             # duplicate ever appears, the lowest weight wins (and the
@@ -253,12 +287,14 @@ def diff_miner_records(
 
 
 __all__ = [
+    "ENGINE_VERSION",
     "SCORING_WINDOW_DAYS",
     "EventStreamScores",
     "MissingVerdictsError",
     "ShadowDiff",
     "build_parity_report",
     "diff_miner_records",
+    "parse_epoch",
     "score_event_stream",
     "window_epochs",
 ]
