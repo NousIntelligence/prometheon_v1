@@ -40,6 +40,9 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
 )
 from cryptography.hazmat.primitives.asymmetric.utils import encode_dss_signature
 
+from prometheon.events.pipeline import EventStreamScores, build_parity_report
+from prometheon.mechanisms.phase1_growth.event_attribution import MinerAttributionResult
+
 pytestmark = pytest.mark.contract
 
 FIXTURES = Path(__file__).resolve().parent.parent / "fixtures" / "decentralized-validation"
@@ -335,3 +338,57 @@ class TestDayDigest:
         assert expected == hashlib.sha256(b"").digest()
         assert env["records_hash"] == "0x" + expected.hex()
         assert env["record_count"] == 0
+
+
+class TestParityReportHash:
+    """ingest-contract §10.3 — the advisory report's scores_hash bytes.
+
+    A plain SHA-256 over ``JCS({epoch, scores})``: no domain prefix, no
+    signature. JCS sorts object keys but preserves array order, which is
+    why the rows are contractually sorted by ``user_ref_evt`` — the sort
+    is part of the hashed bytes. The platform recomputes this and rejects
+    a mismatch with ``parity_scores_hash_mismatch``, so our artefact has
+    to reproduce it exactly or every report we submit is refused.
+    """
+
+    FIXTURE = FIXTURES / "parity-report" / "01-scores-hash"
+
+    def _report(self) -> dict[str, Any]:
+        data: Any = json.loads((self.FIXTURE / "report.json").read_text())
+        assert isinstance(data, dict)
+        return data
+
+    def test_canonical_bytes_match(self) -> None:
+        report = self._report()
+        expected = bytes.fromhex((self.FIXTURE / "canonical.bytes.hex").read_text().strip())
+        payload = {"epoch": report["epoch"], "scores": report["scores"]}
+        assert _jcs(payload) == expected
+
+    def test_scores_hash_matches(self) -> None:
+        report = self._report()
+        expected = (self.FIXTURE / "scores_hash.hex").read_text().strip()
+        payload = {"epoch": report["epoch"], "scores": report["scores"]}
+        digest = "0x" + hashlib.sha256(_jcs(payload)).hexdigest()
+        assert digest == expected == report["scores_hash"]
+
+    def test_our_builder_reproduces_the_vector(self) -> None:
+        """The shipped artefact, not a re-derivation of the fixture."""
+        report = self._report()
+        scores = {
+            (row["user_ref_evt"], report["epoch"]): row["daily_score"] for row in report["scores"]
+        }
+        ours = build_parity_report(
+            EventStreamScores(
+                scoring_date=report["epoch"],
+                miner_records=[],
+                attribution=MinerAttributionResult(
+                    miner_scores={}, active_members={}, eligible={}, per_user_day_hotkey={}
+                ),
+                daily_scores=scores,
+                excluded_signature_verdicts=[],
+                marker_missing=False,
+                verdict_count_mismatch={},
+            )
+        )
+        assert ours["scores_hash"] == report["scores_hash"]
+        assert ours["scores"] == report["scores"]

@@ -1,0 +1,8 @@
+{
+  "purpose": "Miner hotkey of the dual-role leader in the attribution fixture. TEST KEY ONLY.",
+  "seed_label": "PROMETHEON-PHASE1-TEST-MINER-DUAL-ROLE-SR25519-2026-07",
+  "seed_hex": "0x0cbff6f53fc62233e7b69094289203a0ce9e6c5585bba55f1f503683174c99b8",
+  "public_key_hex": "0xcee9827615efc90a7e856c2e5a53f4da5859b7f89c08eb1d78a60c59da67896b",
+  "secret_key_hex": "0x388533a81447aa38bfd267588e4db90f85f11cc6045adbe4d9c9230aa8982c49006c12f77e463b9573c87970df940b0a1fc1316028a1631f5643383f6127f393",
+  "ss58": "5Gk1659764VqcUfJFwAZ7jbYdfvYxkjUirKhBCm6D2PvkUm6"
+}
