@@ -218,3 +218,107 @@ class TestRoleIsolation:
             },
         )
         assert bindings.binding_at_day_start(LEADER, "2026-06-15") == HOTKEY
+
+
+class TestDeterminismGuard:
+    """scoring-port §3.1 — input order must never decide the outcome.
+
+    The platform keeps at most one active miner binding, so these states
+    should be unreachable; the guard exists precisely so that two
+    implementations reading the same records in different orders cannot
+    disagree if one ever occurs. The r4 fixture cannot exercise it (its
+    dual-role leader never has two miner bindings active at once), so it
+    is pinned here.
+    """
+
+    HOTKEY_LOW = "5AAA" + "a" * 44
+    HOTKEY_HIGH = "5ZZZ" + "z" * 44
+
+    def _bind(self, hotkey: str, at: str, user: str = "usr_leader") -> dict[str, object]:
+        return {
+            "user_ref_evt": user,
+            "core": {
+                "kind": "miner_hotkey_bind",
+                "hotkey_ss58": hotkey,
+                "bound_at": at,
+            },
+        }
+
+    def _unbind(self, hotkey: str, at: str, user: str = "usr_leader") -> dict[str, object]:
+        return {
+            "user_ref_evt": user,
+            "core": {
+                "kind": "miner_hotkey_unbind",
+                "hotkey_ss58": hotkey,
+                "unbound_at": at,
+            },
+        }
+
+    def _ledger(self, records: list[dict[str, object]]) -> BindingLedger:
+        ledger = BindingLedger()
+        for record in records:
+            ledger.apply_identity_record(record)
+        return ledger
+
+    def test_greatest_bound_at_wins(self) -> None:
+        records = [
+            self._bind(self.HOTKEY_LOW, "2026-07-01T00:00:00Z"),
+            self._bind(self.HOTKEY_HIGH, "2026-07-02T00:00:00Z"),
+        ]
+        for ordering in (records, list(reversed(records))):
+            ledger = self._ledger(ordering)
+            assert ledger.binding_at_day_start("usr_leader", "2026-07-05") == self.HOTKEY_HIGH
+
+    def test_equal_bound_at_breaks_on_ascending_hotkey(self) -> None:
+        records = [
+            self._bind(self.HOTKEY_HIGH, "2026-07-01T00:00:00Z"),
+            self._bind(self.HOTKEY_LOW, "2026-07-01T00:00:00Z"),
+        ]
+        for ordering in (records, list(reversed(records))):
+            ledger = self._ledger(ordering)
+            assert ledger.binding_at_day_start("usr_leader", "2026-07-05") == self.HOTKEY_LOW
+
+    def test_unbind_sharing_its_binds_timestamp_does_not_undo_it(self) -> None:
+        """The interval is (bound_at, t0] — open at the left."""
+        records = [
+            self._bind(self.HOTKEY_LOW, "2026-07-01T00:00:00Z"),
+            self._unbind(self.HOTKEY_LOW, "2026-07-01T00:00:00Z"),
+        ]
+        for ordering in (records, list(reversed(records))):
+            ledger = self._ledger(ordering)
+            assert ledger.binding_at_day_start("usr_leader", "2026-07-05") == self.HOTKEY_LOW
+
+    def test_later_unbind_does_undo_it(self) -> None:
+        ledger = self._ledger(
+            [
+                self._bind(self.HOTKEY_LOW, "2026-07-01T00:00:00Z"),
+                self._unbind(self.HOTKEY_LOW, "2026-07-01T00:00:01Z"),
+            ]
+        )
+        assert ledger.binding_at_day_start("usr_leader", "2026-07-05") is None
+
+    def test_a_rebind_after_an_unbind_is_active_again(self) -> None:
+        ledger = self._ledger(
+            [
+                self._bind(self.HOTKEY_LOW, "2026-07-01T00:00:00Z"),
+                self._unbind(self.HOTKEY_LOW, "2026-07-02T00:00:00Z"),
+                self._bind(self.HOTKEY_LOW, "2026-07-03T00:00:00Z"),
+            ]
+        )
+        assert ledger.binding_at_day_start("usr_leader", "2026-07-05") == self.HOTKEY_LOW
+
+    def test_validator_bindings_never_participate(self) -> None:
+        ledger = self._ledger(
+            [
+                self._bind(self.HOTKEY_LOW, "2026-07-01T00:00:00Z"),
+                {
+                    "user_ref_evt": "usr_leader",
+                    "core": {
+                        "kind": "validator_hotkey_bind",
+                        "hotkey_ss58": self.HOTKEY_HIGH,
+                        "bound_at": "2026-07-02T00:00:00Z",
+                    },
+                },
+            ]
+        )
+        assert ledger.binding_at_day_start("usr_leader", "2026-07-05") == self.HOTKEY_LOW

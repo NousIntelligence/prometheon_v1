@@ -136,6 +136,9 @@ The read API has **three** outcomes and they are not interchangeable:
 | empty page, `next_seq == from_seq` | nothing materialized at your position yet | the pass ends — re-run later |
 | `410 backfill_range_unavailable` | those seqs are **below the platform's retained floor and are gone for good** | the command stops and tells you the earliest seq still available |
 
+The platform serves a **30-day hot window**. A gap older than that cannot be
+recovered by backfill at all and is what the `410` reports.
+
 The third is not a retry case. Resuming past it means accepting a
 permanent hole that every affected day digest will then fail on, so the
 command refuses to make that choice for you — escalate it. (Platform-side
@@ -271,9 +274,26 @@ history) and the documented ~5-minute day-close attribution edge. Anything
 else is a parity incident — report it with the epoch and the diff lines.
 
 The switch to event-derived weights is a **coordinated date** agreed with the
-platform after 14 consecutive clean shadow days — never a per-validator
-decision. Snapshots keep being produced through the fallback window after the
-flip.
+platform, never a per-validator decision. The criterion is **≥ 30 consecutive
+days of zero unexplained divergence across ≥ 3 validators**, measured through
+the parity-report endpoint rather than asserted — so it is an aggregate the
+platform can evidence, not a count any one operator keeps. Snapshots keep
+being produced through the fallback window after the flip.
+
+---
+
+## How your score reaches a miner
+
+Attribution follows the **fan-group leader's miner binding**, resolved at the
+start of the scored day: a member's whole day belongs to the group they were
+last in at day close, and that group's mass goes to the hotkey its leader had
+bound as a **miner** at `00:00:00Z`.
+
+One account may hold both a miner and a validator hotkey — a leader who also
+runs a validator is normal. **A validator binding never attributes group
+mass**, whether it was bound before the miner binding, after it, or while the
+miner binding is unbound. A leader with no active miner binding attributes to
+no miner at all; there is no fallback to their validator hotkey.
 
 ---
 
@@ -298,6 +318,10 @@ flip.
 | `ALARM: injection evidence at seq N` | A record with an invalid/unregistered device signature is inside the signed stream | Report to the platform team with the seq — only the platform could have put it there |
 | `ALARM: verdict count mismatch` | Held verdicts for an epoch disagree with the sealed marker | Report with the epoch; do not suppress |
 | `ingest check-day` exits 3 | Local bytes differ from the signed day digest | Run `ingest backfill` first (a gap explains most mismatches); if it survives a clean catch-up it is a wire-contract incident — report `family + epoch + local vs digest hash` |
+| `410 backfill_range_unavailable` | The range is below the platform's retained floor — gone permanently | Stop retrying. Escalate: resuming past it means a permanent gap that every affected day digest will fail on |
+| `digest_not_sealed` from `check-day` | The seal is not due yet (deadline D+1 01:00 UTC) | Nothing — re-run after the deadline |
+| `digest_not_found` from `check-day` | The epoch closed and its completeness proof is missing | Alarm: report `family + epoch`; this is not a local problem |
+| `submit-parity` exits 3 | The platform's diff disagrees with your per-user scores | Parity incident for that epoch — report it with the epoch and your report file |
 | `ENVIRONMENT_MISMATCH` from any platform call | The environment-binding headers are missing or name the wrong environment | Check `chain.network` and `platform.platform_instance_id` in your config match the environment your token was issued for |
 | `verdicts_complete` missing past ~02:05 UTC | Platform sealing run is late | Score later, or `--allow-missing-marker` per the documented fallback |
 | `test_publisher_key_refused` | The derivable fixture key reached a live config | Remove it from the trusted keys — it must never sign live traffic |

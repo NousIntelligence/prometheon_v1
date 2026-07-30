@@ -586,17 +586,18 @@ class BackfillClient:
     def _check_page_echo(page: dict[str, Any], family: EventFamily, from_seq: int) -> None:
         """Confirm the page answers the request it echoes back.
 
-        For a non-empty page a wrong family or offset is caught per record;
-        for an empty page nothing else would notice, and an empty page is
-        exactly what decides "caught up" versus "retry later".
+        Both fields are documented on every page (§7.1), so a missing one
+        is itself a contract breach — and skipping the check when they are
+        absent would leave the empty-page case unguarded, which is exactly
+        the case that decides whether catch-up stops.
         """
         echoed_family = page.get("family")
-        if echoed_family is not None and echoed_family != family.value:
+        if echoed_family != family.value:
             raise BackfillError(
                 f"backfill page is for family {echoed_family!r}, not {family.value!r}"
             )
         echoed_from = page.get("from_seq")
-        if echoed_from is not None and echoed_from != from_seq:
+        if echoed_from != from_seq:
             raise BackfillError(
                 f"backfill page starts at from_seq {echoed_from!r}, not the requested {from_seq}"
             )

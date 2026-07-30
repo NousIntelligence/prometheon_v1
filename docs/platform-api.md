@@ -286,14 +286,25 @@ them require the signed-request header set.
 Scope: `ingest:register`. Body:
 
 ```json
-{ "ingest_endpoint_url": "https://ingest.example.com/" }
+{
+  "ingest_endpoint_url": "https://ingest.example.com/",
+  "chain_network": "test",
+  "platform_instance_id": "bitfan-staging"
+}
 ```
+
+The two environment fields are **required in the body** — every `/identity/*`
+route sits behind the environment guard, and a body without them (or with
+values that do not match the instance you are calling) is
+`400 ENVIRONMENT_MISMATCH`, whose payload echoes the expected values.
 
 `data`: `{ endpoint_id, rotated, unchanged }`. The Platform binds the endpoint
 server-side to the token's verified hotkey. Re-registering the same URL is a
 no-op (`unchanged: true`); a different URL rotates atomically (`rotated: true`).
 The URL must be public HTTPS with a publicly-trusted certificate — an SSRF guard
-refuses anything else, and redirects count as delivery failure.
+refuses anything else, and redirects count as delivery failure. Its hostname
+must have an **IPv4 A record**: dual-stack is fine, AAAA-only is not supported
+(the platform's dialer prefers IPv4 and its IPv6 egress is not guaranteed).
 
 ### `GET /api/v1/prometheon/events/backfill?family=&from_seq=&limit=`
 
@@ -307,10 +318,22 @@ Scope: `events:read`. `data`:
 once, byte-identical — so a backfilled record and a pushed one are
 indistinguishable at rest, and either can be hashed into the day digest.
 `from_seq` is inclusive. The page is contiguous and gap-free: it stops at the
-first gap or not-yet-materialized record. An empty page whose `next_seq` equals
-the requested `from_seq` means *retry later* — normal on a fresh deployment,
-where records materialize only after the Platform's delivery worker runs.
-`limit` defaults to 500 and is capped at 1000.
+first gap or not-yet-materialized record. `limit` defaults to 500, capped at 1000.
+
+**Exactly three outcomes, and they are not interchangeable:**
+
+| Response | Meaning | Client action |
+|---|---|---|
+| `200`, `records` non-empty | a contiguous run ending at the first gap | store, continue from `next_seq` |
+| `200`, `records: []`, `next_seq == from_seq` | nothing materialized at `from_seq` yet | retry later, same `from_seq` |
+| `410`, `error.code = "backfill_range_unavailable"` | `from_seq` is below the family's earliest retained seq — gone permanently | **stop retrying**; escalate, or resume deliberately from `details.earliest_available_seq` and record a permanent gap |
+
+The `410` payload carries
+`details: { family, requested_from_seq, earliest_available_seq }`. A `410`
+never means "you are ahead" and never means "wait". The Platform never serves
+a page across a gap, so the only forward jump in `next_seq` you will ever be
+handed is that explicit `earliest_available_seq` — any other is an incident.
+The backfill hot window is 30 days.
 
 ### `GET /api/v1/prometheon/events/digest?family=&epoch=YYYY-MM-DD`
 
@@ -330,6 +353,53 @@ Verify against the key valid at `signed_at`, **not** against whichever key is
 currently active: revoked keys stay listed precisely so historical digests keep
 verifying across a rotation. The opposite holds for push batches, which are
 always signed by the active key.
+
+**An absent digest answers one of two codes** (both `404` — branch on
+`error.code`, never on the message):
+
+| `error.code` | When | Meaning |
+|---|---|---|
+| `digest_not_sealed` | the Platform's DB clock is before the epoch's seal deadline | expected — wait, do not alarm |
+| `digest_not_found` | at or after the deadline, with no digest | anomaly — the completeness proof is missing; alarm |
+
+The worker seals epoch `D` for all four families at **00:40 UTC on D+1**, and
+the deadline is that plus a 20-minute grace, i.e. **D+1 01:00:00 UTC**. Both
+responses carry `details.seal_deadline` and `details.now` (the Platform's DB
+clock — the same clock that stamps `epoch_id`), so a check at 00:50 is told to
+wait and one at 01:30 alarms.
+
+### `POST /api/v1/prometheon/events/parity-report`
+
+Scope: `events:read`; the token's role must be `validator` and its hotkey must
+already be verified. **Advisory only** — nothing submitted or returned is an
+input to scoring, weighting, ranking, or validator standing.
+
+```json
+{
+  "epoch": "2026-07-29",
+  "scores": [ { "user_ref_evt": "usr_evt_<64 hex>", "daily_score": 1 } ],
+  "scores_hash": "0x<64 hex>",
+  "chain_network": "test",
+  "platform_instance_id": "bitfan-staging"
+}
+```
+
+`epoch` must be a **closed** day. `scores` are sorted ascending by
+`user_ref_evt`, no duplicates, integer scores, at most 10 000 rows; absence
+means zero, and an explicit `0` row is equivalent. `scores_hash` is
+`"0x" + sha256(JCS({epoch, scores}))` — a plain hash, no domain prefix and no
+signature; the Platform recomputes it and rejects a mismatch with
+`parity_scores_hash_mismatch`.
+
+`data` returns `{ advisory_only, report_id, epoch, scores_received,
+scores_hash, status, received_at, diffed_at, verdict, epoch_agreement }`.
+The diff is **asynchronous** — the pseudonym key that maps `user_ref_evt` to a
+user exists only in the Platform's worker process — so a fresh submission is
+`status: "pending"` and **re-POSTing the identical report is how you poll**.
+Re-posting different bytes for the same epoch replaces the row and re-queues
+the diff. Verdict counts are `{ agreed_count, score_mismatches, platform_only,
+report_only }`; `status` is `match` only when all three divergence counts are
+zero.
 
 ### `GET /api/v1/prometheon/keys`
 
@@ -381,6 +451,9 @@ Wire codes match one of two shapes:
 
 - `UPPER_SNAKE` — identity, hotkey, snapshot, binding-ledger, and cross-environment codes.
 - `dotted.lowercase` — the five granular `signature.*` primitives.
+- `lowercase_snake` — the event-stream read and parity codes
+  (`backfill_range_unavailable`, `digest_not_sealed`, `digest_not_found`,
+  `parity_*`). Some carry a typed `details` payload — see the endpoint.
 
 The CLI validates the wire-code shape against `^[a-zA-Z0-9._-]{1,64}$` at parse time; anything outside this shape is refused verbatim and the CLI surfaces a malformed-code error instead, so a corrupt or hostile payload can never inject terminal control sequences via the operator-facing trailer.
 
