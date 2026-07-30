@@ -50,6 +50,11 @@ from prometheon.platform.schemas import (
     DetailedPage,
     NonceRequestBody,
 )
+from prometheon.platform.wire import (
+    environment_binding_headers,
+    unwrap_error_envelope,
+    unwrap_success_envelope,
+)
 from prometheon.security.canonical import DOMAIN_API_REQUEST
 from prometheon.security.hashes import EMPTY_SHA256_HEX, api_token_hash, body_hash
 from prometheon.security.nonce import generate_api_request_nonce
@@ -259,8 +264,10 @@ class BitFanClient:
             # because there is no body field to carry them. The same
             # values are also part of the signed ApiRequestPayload so
             # signature coverage is unchanged.
-            "X-Prometheon-Chain-Network": self._chain_network.value,
-            "X-Prometheon-Platform-Instance-Id": self._platform_instance_id,
+            **environment_binding_headers(
+                chain_network=self._chain_network.value,
+                platform_instance_id=self._platform_instance_id,
+            ),
             "Client-Name": _CLIENT_NAME,
         }
         url = f"{self._base_url}{path}"
@@ -270,16 +277,12 @@ class BitFanClient:
     def _decode_or_raise(self, response: httpx.Response) -> dict[str, Any]:
         """Parse a JSON body, unwrap the platform envelope, or raise.
 
-        The BitFan platform wraps every response in a standard envelope:
-
-        - Success: ``{"success": true, "data": {...}, "meta": {}}``
-        - Error:   ``{"success": false, "error": {"code": "...", "message": "..."}}``
-
-        Both shapes are unwrapped here so callers receive the inner
-        payload directly and :func:`platform_error_from_response_body`
-        receives the flat ``{code, message}`` it expects. Non-enveloped
-        bodies pass through unchanged, which keeps the helper resilient
-        against future endpoints that might bypass the interceptor.
+        Both envelope shapes (see :mod:`prometheon.platform.wire`) are
+        unwrapped here so callers receive the inner payload directly and
+        :func:`platform_error_from_response_body` receives the flat
+        ``{code, message}`` it expects. Non-enveloped bodies pass through
+        unchanged, which keeps the helper resilient against future
+        endpoints that might bypass the interceptor.
         """
         from prometheon.platform.errors import PlatformError
 
@@ -296,7 +299,7 @@ class BitFanClient:
                     f"platform returned 2xx with non-object JSON body: {type(data).__name__}",
                     status_code=response.status_code,
                 )
-            unwrapped = _unwrap_success_envelope(data)
+            unwrapped = unwrap_success_envelope(data)
             if not isinstance(unwrapped, dict):
                 raise PlatformError(
                     "platform returned 2xx envelope whose 'data' field is not an object: "
@@ -313,34 +316,8 @@ class BitFanClient:
         except ValueError:
             body = response.text
         if isinstance(body, dict):
-            body = _unwrap_error_envelope(body)
+            body = unwrap_error_envelope(body)
         raise platform_error_from_response_body(body, status_code=response.status_code)
-
-
-def _unwrap_success_envelope(body: dict[str, Any]) -> Any:
-    """Return ``body['data']`` if ``body`` is the platform's success envelope.
-
-    A success envelope is ``{"success": True, "data": {...}, "meta": {...}}``.
-    Bodies that do not match the envelope shape are returned unchanged so
-    plain-shaped responses (if any future endpoint bypasses the
-    interceptor) still flow through unmodified.
-    """
-    if body.get("success") is True and "data" in body:
-        return body["data"]
-    return body
-
-
-def _unwrap_error_envelope(body: dict[str, Any]) -> dict[str, Any]:
-    """Return ``body['error']`` if ``body`` is the platform's error envelope.
-
-    An error envelope is ``{"success": False, "error": {"code": "...", "message": "..."}}``.
-    Bodies that do not match the envelope shape are returned unchanged so
-    :func:`platform_error_from_response_body` can still surface them.
-    """
-    error = body.get("error")
-    if body.get("success") is False and isinstance(error, dict):
-        return error
-    return body
 
 
 __all__ = ["BitFanClient"]
