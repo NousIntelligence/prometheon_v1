@@ -22,7 +22,11 @@ properties the ingest contract builds on:
 
 The store never reads a wall clock; callers pass cutoffs and timestamps
 explicitly (deterministic tests, no hidden time coupling). Instances are
-not thread-safe — the ingest service serializes access.
+not thread-safe — the ingest service serializes access. Separate
+*processes* may share the file (an operator's ``ingest backfill`` run
+against a store the push service is serving): WAL admits the reader and
+serializes the writers, and a busy timeout makes the loser of a write
+race wait its turn instead of failing instantly.
 """
 
 from __future__ import annotations
@@ -43,6 +47,11 @@ from prometheon.events.records import (
 from prometheon.security.canonical import parse_canonical_json
 
 _RECORD_DOMAIN_PREFIX: Final[bytes] = b"PROMETHEON_EVENT_RECORD_V1\n"
+
+# How long a writer waits for another connection's write lock before
+# giving up. Sized for "an operator's backfill run overlaps a push batch",
+# which is seconds at worst.
+_BUSY_TIMEOUT_MS: Final[int] = 10_000
 
 # Families pruned by the retention janitor; identity/group are state
 # families and keep full history (attribution + device-key windows replay
@@ -119,13 +128,20 @@ def load_record_mapping(canonical_bytes: bytes) -> dict[str, Any]:
 class EventStore:
     """SQLite-backed store; one instance per process, callers serialize."""
 
-    def __init__(self, path: Path | str) -> None:
+    def __init__(self, path: Path | str, *, busy_timeout_ms: int = _BUSY_TIMEOUT_MS) -> None:
         # check_same_thread=False: the ingest app runs store calls on a
         # threadpool worker while holding an asyncio lock — access is
         # serialized by contract, so cross-thread use is safe.
         self._connection = sqlite3.connect(str(path), check_same_thread=False)
         self._connection.execute("PRAGMA journal_mode=WAL")
         self._connection.execute("PRAGMA synchronous=FULL")
+        # A second *process* legitimately opens this file: an operator runs
+        # `ingest backfill` against the same store the push service is
+        # serving from — that is the documented response to a gap ack. WAL
+        # lets the reader proceed and serializes the writers, but without a
+        # busy timeout the loser of a write race fails instantly with
+        # "database is locked" instead of waiting its turn.
+        self._connection.execute(f"PRAGMA busy_timeout={int(busy_timeout_ms)}")
         self._connection.executescript(_SCHEMA)
         self._connection.commit()
 
