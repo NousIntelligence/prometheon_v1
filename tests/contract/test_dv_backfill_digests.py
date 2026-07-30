@@ -31,6 +31,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from prometheon.events.backfill import (
+    MAX_PAGE_LIMIT,
     BackfillClient,
     BackfillConfig,
     BackfillError,
@@ -240,21 +241,207 @@ class TestCatchUp:
         with EventStore(tmp_path / "e.sqlite") as store:
             _seed_cursor(store, EventFamily.ACTIVITY, from_seq - 1)
 
-            added = _client(handler).catch_up(store, EventFamily.ACTIVITY)
-            assert added == len(entries)
+            result = _client(handler).catch_up(store, EventFamily.ACTIVITY)
+            assert result.appended == len(entries)
+            assert result.last_seq == BATCH["envelope"]["to_seq"]
             assert store.last_stored_seq(EventFamily.ACTIVITY) == BATCH["envelope"]["to_seq"]
 
             stored = store.canonical_bytes_for_epoch(EventFamily.ACTIVITY, DIGEST_ENV["epoch_id"])
             recomputed = "0x" + hashlib.sha256(b"".join(stored)).hexdigest()
             assert recomputed == DIGEST_ENV["records_hash"]
 
-    def test_empty_page_means_retry_later(self, tmp_path: Path) -> None:
+    def test_empty_page_at_our_position_ends_the_pass(self, tmp_path: Path) -> None:
+        """The one documented empty page: next_seq == from_seq, retry later."""
+
         def handler(request: httpx.Request) -> httpx.Response:
             _assert_wire(request)
             return _ok(_page_payload(int(request.url.params["from_seq"]), []))
 
         with EventStore(tmp_path / "e.sqlite") as store:
-            assert _client(handler).catch_up(store, EventFamily.ACTIVITY) == 0
+            result = _client(handler).catch_up(store, EventFamily.ACTIVITY)
+            assert result.appended == 0
+            assert result.last_seq == 0
+
+    def test_empty_page_that_jumps_the_cursor_forward_is_escalated(self, tmp_path: Path) -> None:
+        """A range the platform will not serve is an incident, not progress.
+
+        Skipping it would leave a silent hole that every affected day
+        digest then fails on, with nothing pointing at the cause.
+        """
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            requested = int(request.url.params["from_seq"])
+            payload = _page_payload(requested, [])
+            payload["next_seq"] = requested + 500
+            return _ok(payload)
+
+        with (
+            EventStore(tmp_path / "e.sqlite") as store,
+            pytest.raises(BackfillError, match="cannot be recovered"),
+        ):
+            _client(handler).catch_up(store, EventFamily.ACTIVITY)
+
+    def test_page_for_the_wrong_family_is_refused(self, tmp_path: Path) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            payload = _page_payload(int(request.url.params["from_seq"]), [])
+            payload["family"] = "group"
+            return _ok(payload)
+
+        with (
+            EventStore(tmp_path / "e.sqlite") as store,
+            pytest.raises(BackfillError, match="group"),
+        ):
+            _client(handler).catch_up(store, EventFamily.ACTIVITY)
+
+    def test_next_seq_disagreeing_with_the_page_is_refused(self, tmp_path: Path) -> None:
+        entries = _backfill_entries()
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            requested = int(request.url.params["from_seq"])
+            payload = _page_payload(requested, entries)
+            payload["next_seq"] = requested + 99  # would silently skip records
+            return _ok(payload)
+
+        with EventStore(tmp_path / "e.sqlite") as store:
+            _seed_cursor(store, EventFamily.ACTIVITY, BATCH["envelope"]["from_seq"] - 1)
+            with pytest.raises(BackfillError, match="next_seq"):
+                _client(handler).catch_up(store, EventFamily.ACTIVITY)
+
+    def test_undecodable_bytes_surface_as_a_contract_error(self, tmp_path: Path) -> None:
+        """Not a bare ValueError from bytes.fromhex escaping the client."""
+        entries = _backfill_entries()
+        entries[0]["canonical_bytes"] = "0xzzzz"
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return _ok(_page_payload(int(request.url.params["from_seq"]), entries))
+
+        with EventStore(tmp_path / "e.sqlite") as store:
+            _seed_cursor(store, EventFamily.ACTIVITY, BATCH["envelope"]["from_seq"] - 1)
+            with pytest.raises(BackfillError, match="did not decode"):
+                _client(handler).catch_up(store, EventFamily.ACTIVITY)
+
+    def test_non_canonical_bytes_are_refused(self, tmp_path: Path) -> None:
+        """The delivered bytes must BE the record, not merely decode to it.
+
+        Storing a re-canonicalised variant would leave the local day hash
+        unable to match the platform's digest, surfacing days later as an
+        unexplained completeness alarm.
+        """
+        record = BATCH["envelope"]["records"][0]
+        # Same record, keys deliberately out of canonical order.
+        reordered = json.dumps(dict(reversed(list(record.items()))), separators=(",", ":"))
+        blob = b"PROMETHEON_EVENT_RECORD_V1\n" + reordered.encode()
+        entries = [
+            {
+                "seq": record["seq"],
+                "event_id": record["event_id"],
+                "canonical_bytes": "0x" + blob.hex(),
+            }
+        ]
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return _ok(_page_payload(int(request.url.params["from_seq"]), entries))
+
+        with EventStore(tmp_path / "e.sqlite") as store:
+            _seed_cursor(store, EventFamily.ACTIVITY, record["seq"] - 1)
+            with pytest.raises(BackfillError, match="not canonical"):
+                _client(handler).catch_up(store, EventFamily.ACTIVITY)
+
+
+class TestRetriesAndErrorDetail:
+    def test_rate_limit_is_retried_then_succeeds(self) -> None:
+        calls: list[int] = []
+        slept: list[float] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            calls.append(1)
+            if len(calls) < 3:
+                return httpx.Response(429, json={"success": False, "error": {"code": "RATE"}})
+            return _ok(_page_payload(int(request.url.params["from_seq"]), []))
+
+        client = BackfillClient(
+            _config(),
+            httpx.Client(transport=httpx.MockTransport(handler)),
+            sleeper=slept.append,
+        )
+        page = client.fetch_page(EventFamily.ACTIVITY, 1)
+
+        assert page["records"] == []
+        assert len(calls) == 3
+        assert slept == [0.5, 1.0]  # exponential, base 0.5
+
+    def test_retry_after_header_is_honoured(self) -> None:
+        slept: list[float] = []
+        calls: list[int] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            calls.append(1)
+            if len(calls) == 1:
+                return httpx.Response(429, headers={"Retry-After": "2"}, json={})
+            return _ok(_page_payload(1, []))
+
+        BackfillClient(
+            _config(),
+            httpx.Client(transport=httpx.MockTransport(handler)),
+            sleeper=slept.append,
+        ).fetch_page(EventFamily.ACTIVITY, 1)
+
+        assert slept == [2.0]
+
+    def test_retries_are_bounded(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(429, json={"success": False, "error": {"code": "RATE"}})
+
+        client = BackfillClient(
+            _config(),
+            httpx.Client(transport=httpx.MockTransport(handler)),
+            sleeper=lambda _seconds: None,
+        )
+        with pytest.raises(BackfillError, match="RATE"):
+            client.fetch_page(EventFamily.ACTIVITY, 1)
+
+    def test_error_carries_status_and_platform_code(self) -> None:
+        """ "digest not published yet" must be distinguishable from auth failure."""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return _error(404, "DIGEST_NOT_PUBLISHED", "not sealed yet")
+
+        with pytest.raises(BackfillError) as excinfo:
+            _client(handler).fetch_page(EventFamily.ACTIVITY, 1)
+        assert excinfo.value.status_code == 404
+        assert excinfo.value.error_code == "DIGEST_NOT_PUBLISHED"
+
+    def test_transport_failure_surfaces_as_a_backfill_error(self) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            raise httpx.ConnectError("no route to host")
+
+        with pytest.raises(BackfillError, match="unreachable"):
+            _client(handler).fetch_page(EventFamily.ACTIVITY, 1)
+
+
+class TestConfigValidation:
+    @pytest.mark.parametrize("limit", [0, -1, MAX_PAGE_LIMIT + 1])
+    def test_page_limit_outside_the_documented_range_is_refused(self, limit: int) -> None:
+        with pytest.raises(ValueError, match="page_limit"):
+            BackfillConfig(
+                base_url="http://read.test",
+                api_token="t",
+                trusted_keys=TRUSTED,
+                chain_network=CHAIN_NETWORK,
+                platform_instance_id=INSTANCE_ID,
+                page_limit=limit,
+            )
+
+    def test_negative_retries_refused(self) -> None:
+        with pytest.raises(ValueError, match="max_retries"):
+            BackfillConfig(
+                base_url="http://read.test",
+                api_token="t",
+                trusted_keys=TRUSTED,
+                chain_network=CHAIN_NETWORK,
+                platform_instance_id=INSTANCE_ID,
+                max_retries=-1,
+            )
 
 
 class TestDigestVerification:
@@ -330,3 +517,39 @@ class TestDigestVerification:
         payload = _signed_digest_payload(DIGEST_ENV)
         with pytest.raises(DigestVerificationError, match="test publisher key"):
             verify_signed_digest(payload, trusted_keys=TRUSTED)
+
+    def test_malformed_records_hash_is_refused(self) -> None:
+        """Pinned before the signature check, so it cannot become a mystery."""
+        envelope = dict(DIGEST_ENV)
+        envelope["records_hash"] = DIGEST_ENV["records_hash"].upper()
+        payload = _signed_digest_payload(envelope)
+        with pytest.raises(DigestVerificationError, match="records_hash"):
+            verify_signed_digest(payload, trusted_keys=TRUSTED, allow_test_publisher_key=True)
+
+
+# A rotated-out key: still listed on /keys, window closed 2026-08-01.
+REVOKED_KEYS = {
+    KEY_INFO["key_id"]: TrustedKey(
+        public_key=KEY_INFO["public_key_hex"],
+        not_before="2026-05-01T00:00:00Z",
+        not_after="2026-08-01T00:00:00Z",
+        status="revoked",
+    )
+}
+
+
+class TestKeyRotation:
+    """Pinned answer B5: revoked-but-listed keys keep historical digests verifiable."""
+
+    def test_revoked_key_still_verifies_a_digest_it_signed_while_valid(self) -> None:
+        payload = _signed_digest_payload(DIGEST_ENV)  # signed_at 2026-07-15, inside the window
+        digest = verify_signed_digest(
+            payload, trusted_keys=REVOKED_KEYS, allow_test_publisher_key=True
+        )
+        assert digest.records_hash == DIGEST_ENV["records_hash"]
+
+    def test_revoked_key_is_refused_outside_its_validity_window(self) -> None:
+        payload = _signed_digest_payload(DIGEST_ENV)
+        payload["signed_at"] = "2026-09-01T00:40:00Z"  # after not_after
+        with pytest.raises(DigestVerificationError, match="validity window"):
+            verify_signed_digest(payload, trusted_keys=REVOKED_KEYS, allow_test_publisher_key=True)
