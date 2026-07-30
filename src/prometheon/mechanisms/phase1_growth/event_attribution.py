@@ -98,12 +98,17 @@ class BindingLedger:
     """Identity-family hotkey-binding state, from the core timestamps.
 
     Feed identity-family bind/unbind records (or their ``genesis_import``
-    wrappers) in seq order via :meth:`apply_identity_record`.
+    wrappers) in seq order via :meth:`apply_identity_record`. State is kept
+    per hotkey so the contract's rule can be evaluated literally: a hotkey
+    is bound at ``t0`` when ``bound_at <= t0`` and no unbind for it falls
+    in ``(bound_at, t0]``.
     """
 
     def __init__(self) -> None:
-        # Per leader: ordered (at, is_bind, hotkey) events sorted lazily.
-        self._events_by_user: dict[str, list[tuple[datetime, bool, str | None]]] = {}
+        # Per leader, per hotkey: (at, is_bind) events, sorted lazily.
+        self._events_by_user: dict[str, dict[str, list[tuple[datetime, bool]]]] = {}
+        # Unbinds that name no hotkey clear whatever was bound at the time.
+        self._wildcard_unbinds: dict[str, list[datetime]] = {}
 
     def apply_identity_record(self, record: dict[str, Any]) -> None:
         core = record.get("core", record)
@@ -123,20 +128,45 @@ class BindingLedger:
         hotkey = core.get("hotkey_ss58")
         if not (isinstance(user, str) and isinstance(timestamp, str)):
             return
-        self._events_by_user.setdefault(user, []).append(
-            (_parse_ts(timestamp), is_bind, hotkey if isinstance(hotkey, str) else None)
-        )
+        at = _parse_ts(timestamp)
+        if not isinstance(hotkey, str):
+            if not is_bind:
+                self._wildcard_unbinds.setdefault(user, []).append(at)
+            return
+        self._events_by_user.setdefault(user, {}).setdefault(hotkey, []).append((at, is_bind))
 
     def binding_at_day_start(self, user_ref_evt: str, epoch_id: str) -> str | None:
-        """The hotkey state at ``epoch_id @ 00:00:00Z`` (bound_at inclusive)."""
+        """The miner hotkey bound at ``epoch_id @ 00:00:00Z``, if any.
+
+        Applies the scoring-port §3.1 determinism guard: where more than one
+        miner binding is somehow active at ``t0`` — the platform keeps at
+        most one, so this should be unreachable — the greatest ``bound_at``
+        wins, and a remaining tie is broken on ascending ``hotkey_ss58``.
+        The guard exists so that two implementations reading the same
+        records in different orders cannot disagree; never let arrival
+        order decide.
+        """
         t0 = _day_start(epoch_id)
-        state: str | None = None
-        for at, is_bind, hotkey in sorted(
-            self._events_by_user.get(user_ref_evt, []), key=lambda item: item[0]
-        ):
-            if at <= t0:
-                state = hotkey if is_bind else None
-        return state
+        cleared = [at for at in self._wildcard_unbinds.get(user_ref_evt, []) if at <= t0]
+
+        active: list[tuple[datetime, str]] = []
+        for hotkey, events in self._events_by_user.get(user_ref_evt, {}).items():
+            bound_at: datetime | None = None
+            for at, is_bind in sorted(events, key=lambda item: item[0]):
+                if at > t0:
+                    break
+                bound_at = at if is_bind else None
+            if bound_at is not None and not any(bound_at < at for at in cleared):
+                active.append((bound_at, hotkey))
+
+        if not active:
+            return None
+        # Two stable sorts express the rule directly: ascending hotkey
+        # first, then descending bound_at, so the head is the greatest
+        # bound_at and — among equal ones — the smallest hotkey.
+        active.sort(key=lambda item: item[1])
+        active.sort(key=lambda item: item[0], reverse=True)
+        return active[0][1]
 
 
 @dataclass(frozen=True)

@@ -40,9 +40,15 @@ def ledgers(scenario: dict[str, Any]) -> tuple[GroupLedger, BindingLedger]:
 
     bindings = BindingLedger()
     for event in scenario["binding_events"]:
-        # Vector shorthand: {kind: bind|unbind, user_ref_evt, hotkey_ss58, at}.
-        kind = "miner_hotkey_bind" if event["kind"] == "bind" else "miner_hotkey_unbind"
-        timestamp_field = "bound_at" if event["kind"] == "bind" else "unbound_at"
+        # Vector shorthand: {role: miner|validator, kind: bind|unbind,
+        # user_ref_evt, hotkey_ss58, at}. The role MUST be carried through
+        # to the record kind — an adapter that stamps every event as a
+        # miner binding hands the ledger a lie and hides the very defect
+        # this vector exists to catch (a dual-role leader's validator bind
+        # taking over the group).
+        bound = event["kind"] == "bind"
+        kind = f"{event['role']}_hotkey_{'bind' if bound else 'unbind'}"
+        timestamp_field = "bound_at" if bound else "unbound_at"
         bindings.apply_identity_record(
             {
                 "user_ref_evt": event["user_ref_evt"],
