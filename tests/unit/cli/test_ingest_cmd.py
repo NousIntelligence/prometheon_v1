@@ -364,3 +364,49 @@ class TestCheckDayCommand:
         assert result.exit_code == 3, result.output
         assert "ALARM" in result.output
         assert "incomplete" in result.output
+
+
+class TestScoreParityReport:
+    """The parity artifact must come from the shipped command, not by hand."""
+
+    def _store_with_one_login(self, tmp_path: Path) -> Path:
+        from tests.unit.events.test_pipeline import SCORING_DATE, _populate
+
+        db = tmp_path / "score.sqlite"
+        with EventStore(db) as store:
+            _populate(store, activity_kind="login")
+        self.scoring_date = SCORING_DATE
+        return db
+
+    def test_writes_per_user_daily_scores(self, tmp_path: Path) -> None:
+        db = self._store_with_one_login(tmp_path)
+        report_path = tmp_path / "reports" / "parity.json"
+
+        result = CliRunner().invoke(
+            ingest,
+            [
+                "score",
+                "--db",
+                str(db),
+                "--date",
+                self.scoring_date,
+                "--parity-report",
+                str(report_path),
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        report = json.loads(report_path.read_text())
+        assert report["epoch"] == self.scoring_date
+        # One login is one point — the value a hand-rolled extraction got wrong.
+        assert [row["daily_score"] for row in report["scores"]] == [1]
+        assert report["scores_hash"].startswith("0x")
+        assert "1 users scored" in result.output
+
+    def test_report_is_optional(self, tmp_path: Path) -> None:
+        db = self._store_with_one_login(tmp_path)
+        result = CliRunner().invoke(ingest, ["score", "--db", str(db), "--date", self.scoring_date])
+        assert result.exit_code == 0, result.output
+        assert "parity report" not in result.output
+        # stdout stays the miner-record list any existing script already parses.
+        assert isinstance(json.loads(result.output), list)
