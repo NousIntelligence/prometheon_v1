@@ -83,6 +83,13 @@ _EMPTY_SHA256: Final[str] = "0x" + hashlib.sha256(b"").hexdigest()
 _SHA256_HEX_RE: Final[re.Pattern[str]] = re.compile(r"^0x[0-9a-f]{64}$")
 _RETRY_STATUS: Final[frozenset[int]] = frozenset({429, 502, 503, 504})
 
+# Platform error codes we must branch on rather than merely report
+# (ingest-contract §7.1 / §7.2 — "branch on error.code, never on the
+# message; messages are English and may change, codes are stable").
+_BACKFILL_RANGE_UNAVAILABLE: Final[str] = "backfill_range_unavailable"
+_DIGEST_NOT_SEALED: Final[str] = "digest_not_sealed"
+_DIGEST_NOT_FOUND: Final[str] = "digest_not_found"
+
 
 class BackfillError(RuntimeError):
     """The read API returned something the contract forbids.
@@ -105,8 +112,61 @@ class BackfillError(RuntimeError):
         self.error_code = error_code
 
 
+class BackfillRangeUnavailableError(BackfillError):
+    """``410 backfill_range_unavailable`` — the range is gone for good.
+
+    ``from_seq`` is below the family's earliest retained seq, so those
+    records will never be served (ingest-contract §7.1 case iii). This is
+    not "wait": retrying is pointless. A caller either escalates or
+    deliberately resumes from :attr:`earliest_available_seq`, recording a
+    permanent gap — which every affected day digest will then fail on, so
+    the decision belongs to a human, not to a retry loop.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        family: EventFamily,
+        requested_from_seq: int,
+        earliest_available_seq: int | None,
+    ) -> None:
+        super().__init__(message, status_code=410, error_code=_BACKFILL_RANGE_UNAVAILABLE)
+        self.family = family
+        self.requested_from_seq = requested_from_seq
+        self.earliest_available_seq = earliest_available_seq
+
+
 class DigestVerificationError(RuntimeError):
     """A day digest failed signature or shape verification."""
+
+
+class DigestNotSealedError(BackfillError):
+    """``404 digest_not_sealed`` — expected; the seal is not due yet.
+
+    The platform's DB clock is before the epoch's seal deadline (the 00:40
+    UTC cron plus 20 minutes' grace, so D+1 01:00). Wait; do not alarm.
+    """
+
+    def __init__(self, message: str, *, seal_deadline: str | None, now: str | None) -> None:
+        super().__init__(message, status_code=404, error_code=_DIGEST_NOT_SEALED)
+        self.seal_deadline = seal_deadline
+        self.now = now
+
+
+class DigestNotFoundError(BackfillError):
+    """``404 digest_not_found`` — the anomaly; alarm.
+
+    The epoch closed, its seal window elapsed, and the completeness proof
+    is missing. Distinct from :class:`DigestNotSealedError` on purpose: one
+    is a clock, the other is a missing proof, and only the second is an
+    incident.
+    """
+
+    def __init__(self, message: str, *, seal_deadline: str | None, now: str | None) -> None:
+        super().__init__(message, status_code=404, error_code=_DIGEST_NOT_FOUND)
+        self.seal_deadline = seal_deadline
+        self.now = now
 
 
 @dataclass(frozen=True)
@@ -334,12 +394,7 @@ class BackfillClient:
             except ValueError:
                 body = response.text
             if response.status_code != 200 or is_error_envelope(body):
-                raise BackfillError(
-                    f"read API {path} failed: "
-                    f"{describe_error_body(body, status_code=response.status_code)}",
-                    status_code=response.status_code,
-                    error_code=_error_code_of(body),
-                )
+                raise self._failure(path, response.status_code, body, params)
             if not isinstance(body, dict):
                 raise BackfillError(
                     "read API body is not an object", status_code=response.status_code
@@ -354,6 +409,48 @@ class BackfillClient:
             return payload
 
         raise BackfillError(f"read API {path} exhausted {attempts} attempts")
+
+    @staticmethod
+    def _failure(path: str, status_code: int, body: Any, params: dict[str, Any]) -> BackfillError:
+        """Map a failed read-API response onto the exception it deserves.
+
+        The contract's operational cases are distinguished by ``error.code``
+        and nothing else — never by the message, which is English prose the
+        platform may reword. Anything unrecognised stays a plain
+        :class:`BackfillError` carrying the code, so a new platform code
+        surfaces intact instead of being coerced into the wrong branch.
+        """
+        code = _error_code_of(body)
+        detail = describe_error_body(body, status_code=status_code)
+        details = body.get("error", {}).get("details") if isinstance(body, dict) else None
+        details = details if isinstance(details, dict) else {}
+
+        if code == _BACKFILL_RANGE_UNAVAILABLE:
+            earliest = details.get("earliest_available_seq")
+            requested = params.get("from_seq")
+            return BackfillRangeUnavailableError(
+                f"read API {path} refused the range: {detail}",
+                family=EventFamily(str(params.get("family"))),
+                requested_from_seq=int(requested) if isinstance(requested, int) else 0,
+                earliest_available_seq=earliest if isinstance(earliest, int) else None,
+            )
+        if code == _DIGEST_NOT_SEALED:
+            return DigestNotSealedError(
+                f"digest not sealed yet: {detail}",
+                seal_deadline=_str_or_none(details.get("seal_deadline")),
+                now=_str_or_none(details.get("now")),
+            )
+        if code == _DIGEST_NOT_FOUND:
+            return DigestNotFoundError(
+                f"digest missing after its seal deadline: {detail}",
+                seal_deadline=_str_or_none(details.get("seal_deadline")),
+                now=_str_or_none(details.get("now")),
+            )
+        return BackfillError(
+            f"read API {path} failed: {detail}",
+            status_code=status_code,
+            error_code=code,
+        )
 
     def _retry_delay(self, response: httpx.Response, attempt: int) -> float:
         """Backoff before retry ``attempt``; ``Retry-After`` wins if sane."""
@@ -551,6 +648,10 @@ def compare_day(store: EventStore, digest: SignedDayDigest) -> CompletenessRepor
     )
 
 
+def _str_or_none(value: Any) -> str | None:
+    return value if isinstance(value, str) else None
+
+
 def _error_code_of(body: Any) -> str | None:
     """The platform's error ``code``, when the body carries one."""
     if isinstance(body, dict):
@@ -573,8 +674,11 @@ __all__ = [
     "BackfillClient",
     "BackfillConfig",
     "BackfillError",
+    "BackfillRangeUnavailableError",
     "CatchUpResult",
     "CompletenessReport",
+    "DigestNotFoundError",
+    "DigestNotSealedError",
     "DigestVerificationError",
     "SignedDayDigest",
     "compare_day",

@@ -35,6 +35,9 @@ from prometheon.events.backfill import (
     BackfillClient,
     BackfillConfig,
     BackfillError,
+    BackfillRangeUnavailableError,
+    DigestNotFoundError,
+    DigestNotSealedError,
     DigestVerificationError,
     compare_day,
     verify_signed_digest,
@@ -553,3 +556,92 @@ class TestKeyRotation:
         payload["signed_at"] = "2026-09-01T00:40:00Z"  # after not_after
         with pytest.raises(DigestVerificationError, match="validity window"):
             verify_signed_digest(payload, trusted_keys=REVOKED_KEYS, allow_test_publisher_key=True)
+
+
+class TestR4ErrorBranches:
+    """§7.1 / §7.2 — outcomes that must be told apart by error.code."""
+
+    def test_permanently_unavailable_range_is_typed(self, tmp_path: Path) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                410,
+                json={
+                    "success": False,
+                    "error": {
+                        "code": "backfill_range_unavailable",
+                        "message": "range below the retained floor",
+                        "details": {
+                            "family": "activity",
+                            "requested_from_seq": 1,
+                            "earliest_available_seq": 5000,
+                        },
+                    },
+                },
+            )
+
+        with (
+            EventStore(tmp_path / "e.sqlite") as store,
+            pytest.raises(BackfillRangeUnavailableError) as excinfo,
+        ):
+            _client(handler).catch_up(store, EventFamily.ACTIVITY)
+
+        assert excinfo.value.earliest_available_seq == 5000
+        assert excinfo.value.status_code == 410
+        # It is a BackfillError, so existing handlers still catch it...
+        assert isinstance(excinfo.value, BackfillError)
+        # ...but callers can tell "gone for good" from "retry later".
+        assert excinfo.value.error_code == "backfill_range_unavailable"
+
+    def test_digest_not_sealed_is_not_an_alarm(self, tmp_path: Path) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                404,
+                json={
+                    "success": False,
+                    "error": {
+                        "code": "digest_not_sealed",
+                        "message": "seal not due",
+                        "details": {
+                            "seal_deadline": "2026-07-15T01:00:00Z",
+                            "now": "2026-07-15T00:50:00Z",
+                        },
+                    },
+                },
+            )
+
+        with (
+            EventStore(tmp_path / "e.sqlite") as store,
+            pytest.raises(DigestNotSealedError) as excinfo,
+        ):
+            _client(handler).check_day(store, EventFamily.ACTIVITY, DIGEST_ENV["epoch_id"])
+
+        assert excinfo.value.seal_deadline == "2026-07-15T01:00:00Z"
+        assert excinfo.value.now == "2026-07-15T00:50:00Z"
+
+    def test_digest_not_found_is_the_anomaly(self, tmp_path: Path) -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                404,
+                json={
+                    "success": False,
+                    "error": {
+                        "code": "digest_not_found",
+                        "message": "no digest",
+                        "details": {"seal_deadline": "2026-07-15T01:00:00Z"},
+                    },
+                },
+            )
+
+        with EventStore(tmp_path / "e.sqlite") as store, pytest.raises(DigestNotFoundError):
+            _client(handler).check_day(store, EventFamily.ACTIVITY, DIGEST_ENV["epoch_id"])
+
+    def test_unknown_code_stays_a_plain_error(self, tmp_path: Path) -> None:
+        """A new platform code must surface intact, not be coerced."""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return _error(503, "SOMETHING_NEW", "unrecognised")
+
+        with pytest.raises(BackfillError) as excinfo:
+            _client(handler).fetch_page(EventFamily.ACTIVITY, 1)
+        assert type(excinfo.value) is BackfillError
+        assert excinfo.value.error_code == "SOMETHING_NEW"
