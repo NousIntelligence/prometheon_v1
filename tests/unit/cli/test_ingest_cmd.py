@@ -410,3 +410,153 @@ class TestScoreParityReport:
         assert "parity report" not in result.output
         # stdout stays the miner-record list any existing script already parses.
         assert isinstance(json.loads(result.output), list)
+
+
+class TestCheckDayDigestAvailability:
+    """§7.2 — 'not sealed yet' and 'proof missing' are different outcomes."""
+
+    def _invoke(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, code: str) -> Any:
+        def handler(request: httpx.Request) -> httpx.Response:
+            _assert_wire(request)
+            return httpx.Response(
+                404,
+                json={
+                    "success": False,
+                    "error": {
+                        "code": code,
+                        "message": "…",
+                        "details": {"seal_deadline": "2026-07-15T01:00:00Z"},
+                    },
+                },
+            )
+
+        _install_transport(monkeypatch, handler)
+        monkeypatch.setenv(TOKEN_ENV, "cli-token")
+        db = tmp_path / "events.sqlite"
+        EventStore(db).close()
+        return CliRunner().invoke(
+            ingest,
+            [
+                "check-day",
+                "--config",
+                str(_config_file(tmp_path)),
+                "--db",
+                str(db),
+                "--date",
+                "2026-07-14",
+                "--family",
+                "activity",
+                "--api-token-env",
+                TOKEN_ENV,
+            ],
+        )
+
+    def test_not_sealed_waits_without_alarming(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        result = self._invoke(tmp_path, monkeypatch, "digest_not_sealed")
+        assert result.exit_code == 0, result.output
+        assert "not sealed yet" in result.output
+        assert "ALARM" not in result.output
+
+    def test_not_found_past_the_deadline_alarms(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        result = self._invoke(tmp_path, monkeypatch, "digest_not_found")
+        assert result.exit_code == 3, result.output
+        assert "ALARM" in result.output
+        assert "completeness proof is missing" in result.output
+
+
+class TestSubmitParityCommand:
+    def _report_file(self, tmp_path: Path, epoch: str = "2026-07-29") -> Path:
+        from prometheon.events.parity import scores_hash
+
+        rows = [{"user_ref_evt": "usr_evt_" + "a" * 64, "daily_score": 1}]
+        path = tmp_path / "parity.json"
+        path.write_text(
+            json.dumps({"epoch": epoch, "scores": rows, "scores_hash": scores_hash(epoch, rows)})
+        )
+        return path
+
+    def _invoke(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, payload: dict[str, Any]):  # type: ignore[no-untyped-def]
+        def handler(request: httpx.Request) -> httpx.Response:
+            _assert_wire(request)
+            return _ok(payload)
+
+        _install_transport(monkeypatch, handler)
+        monkeypatch.setenv(TOKEN_ENV, "cli-token")
+        return CliRunner().invoke(
+            ingest,
+            [
+                "submit-parity",
+                "--config",
+                str(_config_file(tmp_path)),
+                "--report",
+                str(self._report_file(tmp_path)),
+                "--api-token-env",
+                TOKEN_ENV,
+            ],
+        )
+
+    def test_pending_submission_tells_you_to_poll(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        result = self._invoke(
+            tmp_path,
+            monkeypatch,
+            {
+                "advisory_only": True,
+                "report_id": "r-1",
+                "epoch": "2026-07-29",
+                "scores_received": 1,
+                "status": "pending",
+                "epoch_agreement": {"reports": 1, "diffed": 0, "matched": 0},
+            },
+        )
+        assert result.exit_code == 0, result.output
+        assert "re-run this command" in result.output
+
+    def test_mismatch_exits_three(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        result = self._invoke(
+            tmp_path,
+            monkeypatch,
+            {
+                "advisory_only": True,
+                "report_id": "r-1",
+                "epoch": "2026-07-29",
+                "scores_received": 1,
+                "status": "mismatch",
+                "verdict": {
+                    "agreed_count": 0,
+                    "score_mismatches": 1,
+                    "platform_only": 0,
+                    "report_only": 0,
+                },
+            },
+        )
+        assert result.exit_code == 3, result.output
+        assert "ALARM" in result.output
+
+    def test_clean_match_reports_success(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        result = self._invoke(
+            tmp_path,
+            monkeypatch,
+            {
+                "advisory_only": True,
+                "report_id": "r-1",
+                "epoch": "2026-07-29",
+                "scores_received": 1,
+                "status": "match",
+                "verdict": {
+                    "agreed_count": 1,
+                    "score_mismatches": 0,
+                    "platform_only": 0,
+                    "report_only": 0,
+                },
+            },
+        )
+        assert result.exit_code == 0, result.output
+        assert "parity clean" in result.output

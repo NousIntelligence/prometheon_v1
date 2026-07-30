@@ -10,6 +10,8 @@ instead of passing against an imaginary API.
 
 from __future__ import annotations
 
+import json
+
 import httpx
 import pytest
 
@@ -54,6 +56,26 @@ class TestRegistration:
         result = _register(handler)
         assert result.endpoint_id == "ep-1"
         assert not result.rotated and not result.unchanged
+
+    def test_sends_the_binding_in_the_body_too(self) -> None:
+        """r4 §2: the two environment fields are REQUIRED in the body.
+
+        The headers are what staging accepted before r4 documented the
+        body form; the guard reads either, so we send both.
+        """
+        seen: dict[str, object] = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.update(json.loads(request.content))
+            return httpx.Response(
+                200,
+                json=_enveloped({"endpoint_id": "ep-1", "rotated": False, "unchanged": False}),
+            )
+
+        _register(handler)
+        assert seen["ingest_endpoint_url"] == "https://validator.example/ingest"
+        assert seen["chain_network"] == "test"
+        assert seen["platform_instance_id"] == "bitfan-staging"
 
     def test_rotation_flag_surfaces_from_envelope(self) -> None:
         def handler(_request: httpx.Request) -> httpx.Response:

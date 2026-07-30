@@ -1,6 +1,6 @@
 """``prometheon ingest`` — event-stream operator commands.
 
-Five sub-commands cover the validator side of Decentralized Validation:
+Six sub-commands cover the validator side of Decentralized Validation:
 
 - ``register-endpoint`` — one-time (per URL) registration of the public
   HTTPS ingest endpoint with the platform (long-lived token carrying
@@ -17,6 +17,8 @@ Five sub-commands cover the validator side of Decentralized Validation:
 - ``score`` — recompute miner records for a scoring date from the local
   store, optionally diffing against a snapshot-derived record list for
   shadow-mode parity evidence.
+- ``submit-parity`` — send one closed epoch's per-user daily scores to the
+  platform's advisory parity endpoint (and poll its verdict).
 
 ``backfill`` and ``check-day`` are the operator's half of the catch-up and
 completeness machinery: nothing schedules them yet, so they are run by
@@ -26,6 +28,7 @@ hand (or from cron) until the automation glue lands.
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 import click
@@ -36,9 +39,13 @@ from prometheon.events.backfill import (
     BackfillClient,
     BackfillConfig,
     BackfillError,
+    BackfillRangeUnavailableError,
+    DigestNotFoundError,
+    DigestNotSealedError,
     DigestVerificationError,
 )
 from prometheon.events.ingest import IngestConfig, create_ingest_app
+from prometheon.events.parity import ParityReportError, submit_parity_report
 from prometheon.events.pipeline import (
     MissingVerdictsError,
     build_parity_report,
@@ -262,6 +269,21 @@ def backfill(
                 before = store.last_stored_seq(family)
                 try:
                     result = client.catch_up(store, family)
+                except BackfillRangeUnavailableError as exc:
+                    # Contract §7.1 case (iii): those records are gone for
+                    # good. Resuming past them is a deliberate decision with
+                    # a permanent gap attached, so it is never taken here.
+                    raise click.ClickException(
+                        f"{family.value}: seq {exc.requested_from_seq} is below the platform's "
+                        f"earliest retained seq"
+                        + (
+                            f" ({exc.earliest_available_seq})"
+                            if exc.earliest_available_seq is not None
+                            else ""
+                        )
+                        + " — those records cannot be recovered. Stop retrying and escalate; "
+                        "resuming past the gap is an operator decision."
+                    ) from exc
                 except BackfillError as exc:
                     raise click.ClickException(f"{family.value}: {exc}") from exc
                 total += result.appended
@@ -322,11 +344,17 @@ def check_day(
 ) -> None:
     """Verify local completeness for a day against the signed day digests.
 
-    Fetches each family's signed digest (published ~00:45 UTC for the
-    previous day), verifies the platform signature, and compares the local
-    ``SHA-256`` over stored canonical bytes and the record count. Exits 3
-    on any mismatch — that is the completeness alarm, and it is identical
-    for every validator, so report it with family, epoch, and both hashes.
+    Verifies each family's signed digest and compares the local
+    ``SHA-256`` over stored canonical bytes and the record count.
+
+    Three outcomes, because an absent digest means two different things
+    (contract §7.2). The platform seals epoch D at 00:40 UTC on D+1 with
+    20 minutes' grace, so before D+1 01:00 a missing digest is
+    ``digest_not_sealed`` — **exit 0, wait and re-run**. At or after the
+    deadline it is ``digest_not_found``, an anomaly — **exit 3, alarm**.
+    A hash or count mismatch is likewise exit 3. Only the deadline
+    separates "too early" from "the proof is missing", so the check is
+    safe to run from cron at 00:50 and again at 01:30.
     """
     config = load_validator_config(config_path)
     token = read_api_token_or_exit(env_var=api_token_env, explicit=api_token)
@@ -339,6 +367,22 @@ def check_day(
             for family in _families(selected_families):
                 try:
                     report = client.check_day(store, family, epoch_id)
+                except DigestNotSealedError as exc:
+                    echo_info(
+                        f"{family.value} {epoch_id}: digest not sealed yet"
+                        + (f" (deadline {exc.seal_deadline})" if exc.seal_deadline else "")
+                        + " — re-run after the seal deadline"
+                    )
+                    continue
+                except DigestNotFoundError as exc:
+                    mismatched.append(family.value)
+                    click.echo(
+                        f"ALARM: {family.value} {epoch_id} has no digest past its seal "
+                        f"deadline{f' ({exc.seal_deadline})' if exc.seal_deadline else ''} — "
+                        "the epoch closed and its completeness proof is missing",
+                        err=True,
+                    )
+                    continue
                 except (BackfillError, DigestVerificationError) as exc:
                     raise click.ClickException(f"{family.value}: {exc}") from exc
                 if report.matches:
@@ -357,6 +401,96 @@ def check_day(
 
     if mismatched:
         raise click.exceptions.Exit(3)
+
+
+@ingest.command(name="submit-parity")
+@click.option(
+    "--config",
+    "config_path",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Validator TOML config (base URL + the environment binding).",
+)
+@click.option(
+    "--report",
+    "report_path",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Parity report written by 'ingest score --parity-report'.",
+)
+@click.option("--api-token", default=None, help="Validator token (overrides env var).")
+@click.option(
+    "--api-token-env",
+    default="PROMETHEON_VALIDATOR_API_TOKEN",
+    show_default=True,
+    help="Environment variable holding the token (scope events:read).",
+)
+@click.option(
+    "--platform-base-url",
+    default=None,
+    help="Override the platform base URL from the config.",
+)
+def submit_parity(
+    config_path: Path,
+    report_path: Path,
+    api_token: str | None,
+    api_token_env: str,
+    platform_base_url: str | None,
+) -> None:
+    """Submit a parity report for one closed epoch, or poll its verdict.
+
+    Advisory only: nothing submitted or returned touches scoring, weights,
+    ranking, or this validator's standing. The platform's diff runs
+    asynchronously, so a fresh submission comes back ``pending`` —
+    re-running this command with the same file is how you poll.
+
+    Exit 3 when the platform reports a mismatch; that is a parity incident
+    for the epoch, not a failure of this command.
+    """
+    config = load_validator_config(config_path)
+    token = read_api_token_or_exit(env_var=api_token_env, explicit=api_token)
+    report = json.loads(report_path.read_text())
+    if not isinstance(report, dict):
+        raise click.ClickException(f"{report_path} does not contain a report object")
+
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    try:
+        with httpx.Client(timeout=60.0) as http:
+            verdict = submit_parity_report(
+                base_url=platform_base_url or config.platform.base_url,
+                api_token=token,
+                report=report,
+                chain_network=config.chain.network.value,
+                platform_instance_id=config.platform.platform_instance_id,
+                http=http,
+                today=today,
+            )
+    except ParityReportError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    echo_info(
+        f"{verdict.epoch}: {verdict.scores_received} scores submitted "
+        f"(report {verdict.report_id}, status {verdict.status})"
+    )
+    if verdict.epoch_agreement is not None:
+        agreement = verdict.epoch_agreement
+        echo_info(
+            f"epoch agreement: {agreement.get('matched')} of {agreement.get('diffed')} diffed "
+            f"({agreement.get('reports')} reports submitted)"
+        )
+
+    if verdict.is_pending:
+        echo_info("verdict pending — re-run this command with the same file to poll")
+        return
+    if verdict.status == "no_platform_data":
+        echo_info("no platform data for this epoch — nothing to compare")
+        return
+    if verdict.is_clean:
+        echo_success(f"{verdict.epoch}: parity clean")
+        return
+
+    click.echo(f"ALARM: {verdict.epoch} parity mismatch — {verdict.verdict}", err=True)
+    raise click.exceptions.Exit(3)
 
 
 @ingest.command(name="score")

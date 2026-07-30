@@ -78,11 +78,18 @@ uv run prometheon ingest register-endpoint \
     --config ~/prometheon-validator.toml
 ```
 
-The registration call carries the same environment-binding headers
-(`X-Prometheon-Chain-Network` / `X-Prometheon-Platform-Instance-Id`) as every
-other authenticated platform call — the CLI reads them, and the platform base
-URL, from the config. The signed-request header set is not required for this
-endpoint; bearer token plus the binding headers is sufficient.
+The registration call is environment-bound: the CLI sends
+`chain_network` and `platform_instance_id` **in the body** (required by the
+contract for every `/identity/*` route) and as the
+`X-Prometheon-Chain-Network` / `X-Prometheon-Platform-Instance-Id` headers,
+reading both — and the platform base URL — from your config. Omitting them
+is `400 ENVIRONMENT_MISMATCH`. The signed-request header set is not required
+for this endpoint.
+
+Your ingest hostname must resolve to an **IPv4 A record** (dual-stack is
+fine; AAAA-only is not — the platform's dialer prefers IPv4 and its IPv6
+egress is not guaranteed), and the certificate must chain to the public
+trust store. Redirects count as delivery failure.
 
 Re-running with the same URL is a no-op; a new URL rotates atomically.
 **Register before the platform enables delivery** so you receive the stream
@@ -119,9 +126,24 @@ uv run prometheon ingest backfill \
 
 Run it after a `409 {"code": "gap"}` ack, after any outage, and once when
 joining a stream that is already running. It is safe to re-run: each pass
-resumes from your stored cursor and stops when the platform has nothing
-more (an empty page whose `next_seq` equals your position means "not
-materialized yet — retry later").
+resumes from your stored cursor.
+
+The read API has **three** outcomes and they are not interchangeable:
+
+| What comes back | Meaning | What happens |
+|---|---|---|
+| records | a contiguous run | stored; the pass continues |
+| empty page, `next_seq == from_seq` | nothing materialized at your position yet | the pass ends — re-run later |
+| `410 backfill_range_unavailable` | those seqs are **below the platform's retained floor and are gone for good** | the command stops and tells you the earliest seq still available |
+
+The third is not a retry case. Resuming past it means accepting a
+permanent hole that every affected day digest will then fail on, so the
+command refuses to make that choice for you — escalate it. (Platform-side
+pruning is not enabled yet, so you should not see this today.)
+
+Reaching the end of the stream is **not** proof you have all of it: at the
+frontier, "you are current" and "the platform has not materialized the
+next record" are the same response. Only the day digest settles it.
 
 **Day digests** are published by ~00:45 UTC for the previous day. The
 completeness check recomputes the local hash and count per (family, epoch)
@@ -135,8 +157,22 @@ uv run prometheon ingest check-day \
 ```
 
 Exit `0` means every family matched; **exit `3` is the completeness alarm**
-and prints the local vs digest hash and count on stderr. Check at 00:50 and
-alarm at 01:30 on a missing or mismatched digest.
+and prints the local vs digest hash and count on stderr.
+
+A *missing* digest means one of two things, and the command tells them
+apart on the platform's error code rather than on timing you have to
+reason about yourself:
+
+| Platform answer | Meaning | Command |
+|---|---|---|
+| `digest_not_sealed` | the seal is not due yet (sealed 00:40 UTC on D+1, plus 20 min grace → deadline **D+1 01:00**) | prints "not sealed yet", **exit 0** — re-run later |
+| `digest_not_found` | the deadline passed and the proof is missing | **exit 3**, alarm |
+
+So the documented cron works as written: a check at **00:50** that finds
+nothing is told to wait, and the one at **01:30** alarms. The comparison
+uses the platform's database clock — the same clock that stamps
+`epoch_id` — so neither side's clock skew can make an open day look
+missing.
 **Retention** policy: `activity`/`exclusion` records are prunable after 23
 epochs (the scoring window needs 21); `identity`/`group` are state families
 and keep full history. Pruning never moves the stream cursor, so a pruned
@@ -204,6 +240,29 @@ than pulling per-user numbers out of the library by hand** — the file comes fr
 the same code path that feeds the weights, so what you compare is what the
 validator would actually submit. A hand-rolled extraction once reported a
 correct scoring run as zeros.
+
+Then submit it, once the epoch has closed:
+
+```bash
+uv run prometheon ingest submit-parity \
+    --config ~/prometheon-validator.toml \
+    --report parity-2026-07-29.json
+```
+
+The platform diffs your numbers against its own and records the verdict,
+which is what turns "N consecutive clean shadow days" into a measured fact
+instead of an argument. The diff runs asynchronously (the key that maps
+`user_ref_evt` to a user exists only in the platform's worker process), so a
+fresh submission returns `pending` — **re-run the same command with the same
+file to poll**. Exit `3` means the platform reports a mismatch for that epoch.
+
+This is **advisory only, by construction**: nothing you submit or receive
+touches scoring, weights, ranking, or your standing, and the response
+carries no platform score values and no judgement about any other
+validator. If a future response field ever looks like guidance, treat it as
+a contract violation to report — not as something to act on. A validator
+that tunes its output to what the platform says has stopped recomputing
+independently, which is the whole point of the programme.
 
 Known,
 bounded, non-alarming delta sources during shadow: the 21-day genesis ramp
