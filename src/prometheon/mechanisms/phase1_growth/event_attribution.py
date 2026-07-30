@@ -1,7 +1,7 @@
 """Attribution of per-user daily scores to miners (event-stream source).
 
-Implements the scoring-port contract §3 with the two rules the r3
-attribution vectors pin:
+Implements the scoring-port contract §3 (r4) — three rules, all pinned by
+the attribution vectors:
 
 - **Day-close membership (C3):** a user's whole epoch-``d`` score belongs
   to the group of their *last* ``member_joined`` record with
@@ -13,6 +13,14 @@ attribution vectors pin:
   timestamps** (``bound_at`` / ``unbound_at``), never epoch granularity:
   a mid-day-``d`` bind attributes from ``d+1``; a mid-day-``d`` unbind
   still attributes ``d``; an exact-midnight bind attributes ``d``.
+
+- **Miner bindings only (§3.1, r4):** one account may hold both a miner
+  and a validator hotkey, and ``binding(l, d)`` reads the miner one. A
+  validator binding never attributes group mass — not bound earlier, not
+  bound later, not while the miner binding is unbound — and a leader with
+  no active miner binding attributes to no miner rather than falling back.
+  The determinism guard for the (unreachable) case of two active miner
+  bindings: greatest ``bound_at`` wins, ties on ascending ``hotkey_ss58``.
 
 Aggregation applies the per-day clamp: attribution sums
 ``min(20, max(0, daily_score))`` per (user, day), so ``user_score_14d``
@@ -151,13 +159,21 @@ class BindingLedger:
 
         active: list[tuple[datetime, str]] = []
         for hotkey, events in self._events_by_user.get(user_ref_evt, {}).items():
-            bound_at: datetime | None = None
-            for at, is_bind in sorted(events, key=lambda item: item[0]):
-                if at > t0:
-                    break
-                bound_at = at if is_bind else None
-            if bound_at is not None and not any(bound_at < at for at in cleared):
-                active.append((bound_at, hotkey))
+            # The contract's predicate, evaluated literally and without
+            # reference to arrival order: bound at t0 iff some bind is at
+            # or before t0 and no matching unbind falls in (bound_at, t0].
+            # The interval is open at the left, so an unbind sharing a
+            # timestamp with its bind does not undo it — otherwise two
+            # implementations could disagree on a same-second pair purely
+            # from the order the records reached them.
+            binds = [at for at, is_bind in events if is_bind and at <= t0]
+            if not binds:
+                continue
+            bound_at = max(binds)
+            unbinds = [at for at, is_bind in events if not is_bind and bound_at < at <= t0]
+            if unbinds or any(bound_at < at for at in cleared):
+                continue
+            active.append((bound_at, hotkey))
 
         if not active:
             return None

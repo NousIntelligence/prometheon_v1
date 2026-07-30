@@ -92,3 +92,30 @@ def test_active_members_match(scenario: dict[str, Any], result: Any) -> None:
 def test_eligibility_matches(scenario: dict[str, Any], result: Any) -> None:
     expected = {m["hotkey"]: m["ok"] for m in scenario["expected"]["eligible"]}
     assert result.eligible == expected
+
+
+def test_dual_role_leader_attributes_to_the_miner_hotkey(
+    scenario: dict[str, Any], result: Any
+) -> None:
+    """The check scoring-port §3.1 actually names.
+
+    Leader ``usr_evt_leader_N`` holds a validator hotkey bound BEFORE its
+    miner hotkey and a second one bound mid-window, so "first seen",
+    "earliest" and "latest" each pick a validator hotkey on at least one
+    day. Every day of ``u5|u6|u7`` must land on the miner hotkey in
+    ``test-keys/sr25519-miner-dual.json`` — the fixture states the
+    expectation against that key file, so assert against the file rather
+    than a literal copied out of the scenario.
+    """
+    dual = json.loads((FIXTURES / "test-keys" / "sr25519-miner-dual.json").read_text())
+    miner_hotkey = dual["ss58"]
+
+    days = {
+        (user, epoch): hotkey
+        for (user, epoch), hotkey in result.per_user_day_hotkey.items()
+        if user in {"usr_evt_u5", "usr_evt_u6", "usr_evt_u7"}
+    }
+    assert days, "the dual-role members are missing from the vector"
+    assert set(days.values()) == {miner_hotkey}, (
+        f"a validator hotkey took over the group: {sorted(set(days.values()))}"
+    )
