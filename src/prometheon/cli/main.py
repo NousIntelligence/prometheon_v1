@@ -15,6 +15,12 @@ sub-command into a structured operator-facing block via
 :func:`prometheon.cli.renderer.render_error`. Click's
 ``standalone_mode=False`` is required so that ``cli()`` re-raises those
 errors instead of converting them to ``UsageError`` tracebacks.
+
+That mode has a second consequence :func:`main` must handle: Click
+*returns* an explicit ``click.exceptions.Exit``'s code instead of
+raising it, so any command that signals a condition with
+``raise click.exceptions.Exit(n)`` depends on this module to turn it
+into the process exit status.
 """
 
 from __future__ import annotations
@@ -123,11 +129,16 @@ def main(argv: list[str] | None = None) -> Any:
     :class:`click.exceptions.ClickException` family (usage errors, bad
     parameters) keeps its native rendering so the help-text affordances
     work unchanged.
+
+    Also the CLI's single **exit-code** boundary: because Click returns
+    rather than raises an explicit ``Exit`` in this mode, deliberate
+    non-zero exits are honoured here (see the comment below) rather than
+    being lost.
     """
     raw_argv = argv if argv is not None else sys.argv[1:]
     verbose = _is_verbose_argv(raw_argv)
     try:
-        cli.main(args=raw_argv, standalone_mode=False)
+        result = cli.main(args=raw_argv, standalone_mode=False)
     except (PlatformError, IdentityError, SignatureError) as exc:
         sys.exit(_dispatch_to_renderer(exc, verbose=verbose))
     except click.exceptions.ClickException as exc:
@@ -139,6 +150,14 @@ def main(argv: list[str] | None = None) -> Any:
     except KeyboardInterrupt:
         sys.stderr.write("Aborted!\n")
         sys.exit(130)
+    # Under ``standalone_mode=False`` Click *returns* an explicit
+    # ``Exit``'s code instead of raising it, so a command's
+    # ``raise click.exceptions.Exit(3)`` arrives here as a return value.
+    # Ignoring it silently downgraded every deliberate non-zero exit to 0
+    # — including the shadow-parity mismatch signal that automation reads.
+    # This boundary owns the process exit code as well as error rendering.
+    if isinstance(result, int) and not isinstance(result, bool) and result != 0:
+        sys.exit(result)
     return 0
 
 
