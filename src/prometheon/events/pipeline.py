@@ -25,9 +25,10 @@ evidence the parity gate (14 consecutive clean days) is judged on.
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Final
+from typing import Any, Final
 
 from prometheon.events.device_signatures import DeviceKeyRegistry
 from prometheon.events.records import EventFamily
@@ -45,6 +46,7 @@ from prometheon.mechanisms.phase1_growth.event_scoring import (
     VerdictStatus,
 )
 from prometheon.mechanisms.phase1_growth.snapshot import MinerRecord
+from prometheon.security.canonical import to_canonical_bytes
 
 SCORING_WINDOW_DAYS: Final[int] = 14
 
@@ -64,6 +66,38 @@ class EventStreamScores:
     excluded_signature_verdicts: list[EventVerdict]
     marker_missing: bool
     verdict_count_mismatch: dict[str, tuple[int, int]]
+
+
+def build_parity_report(scores: EventStreamScores) -> dict[str, Any]:
+    """Per-user daily scores for the scored epoch, as a comparable artifact.
+
+    The pipeline has always computed these; only miner totals were ever
+    surfaced, so anyone who needed the per-user numbers reconstructed them
+    with throwaway library code. That is how a scoring run that was
+    correct at every step still got reported wrong. This is the same
+    values, produced by the same code path that feeds the weights, in a
+    shape both sides can compare mechanically:
+
+    ``{epoch, scores: [{user_ref_evt, daily_score}], scores_hash}``
+
+    Rows are sorted by ``user_ref_evt``, so two implementations that agree
+    produce byte-identical output. ``scores_hash`` is SHA-256 over the
+    canonical bytes of ``{epoch, scores}``, which reduces "was this day
+    clean?" to one equality check instead of a row-by-row read.
+    """
+    rows: list[dict[str, Any]] = sorted(
+        (
+            {"user_ref_evt": user, "daily_score": score}
+            for (user, epoch), score in scores.daily_scores.items()
+            if epoch == scores.scoring_date
+        ),
+        key=lambda row: str(row["user_ref_evt"]),
+    )
+    payload: dict[str, Any] = {"epoch": scores.scoring_date, "scores": rows}
+    return {
+        **payload,
+        "scores_hash": "0x" + hashlib.sha256(to_canonical_bytes(payload)).hexdigest(),
+    }
 
 
 @dataclass(frozen=True)
@@ -223,6 +257,7 @@ __all__ = [
     "EventStreamScores",
     "MissingVerdictsError",
     "ShadowDiff",
+    "build_parity_report",
     "diff_miner_records",
     "score_event_stream",
     "window_epochs",

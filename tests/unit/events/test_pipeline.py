@@ -8,6 +8,7 @@ application, attribution, MinerRecord shape, and the alarm surfaces.
 from __future__ import annotations
 
 import hashlib
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,7 @@ import pytest
 
 from prometheon.events.pipeline import (
     MissingVerdictsError,
+    build_parity_report,
     diff_miner_records,
     score_event_stream,
     window_epochs,
@@ -53,7 +55,7 @@ def _envelope(
 
 
 def _activity_core(kind: str, seq: int, epoch: str) -> dict[str, Any]:
-    return {
+    core: dict[str, Any] = {
         "domain": "PROMETHEON_EVENT_V1",
         "kind": kind,
         "target": {"service_id": f"svc-{seq}"},
@@ -61,9 +63,21 @@ def _activity_core(kind: str, seq: int, epoch: str) -> dict[str, Any]:
         "client_ts": f"{epoch}T08:59:59Z",
         "client_nonce": "0x" + f"{seq:016x}",
     }
+    if kind == "login":
+        # A login carries no target and no metrics; both are empty by
+        # contract, not by omission.
+        core["target"] = {}
+        core["scoring_fields"] = {}
+    return core
 
 
-def _populate(store: EventStore, *, with_marker: bool = True, weight_bp: int | None = None) -> None:
+def _populate(
+    store: EventStore,
+    *,
+    with_marker: bool = True,
+    weight_bp: int | None = None,
+    activity_kind: str = "service_detail_view",
+) -> None:
     # Group family: leader creates the group, user joins before the window.
     group_records = [
         _envelope(
@@ -100,16 +114,18 @@ def _populate(store: EventStore, *, with_marker: bool = True, weight_bp: int | N
     ]
     store.append(EventFamily.IDENTITY, prepare_wire_records(EventFamily.IDENTITY, identity_records))
 
-    # Activity family: four counted views on the scoring date (raw = 8).
+    # Activity family: four counted views on the scoring date (raw = 8),
+    # or a single login (raw = 1 — the daily cap for logins is 1).
+    activity_seqs = range(1, 2) if activity_kind == "login" else range(1, 5)
     activity_records = [
         _envelope(
             "activity",
             seq,
             SCORING_DATE,
-            _activity_core("service_detail_view", seq, SCORING_DATE),
+            _activity_core(activity_kind, seq, SCORING_DATE),
             received_ts=f"{SCORING_DATE}T09:{seq:02d}:00Z",
         )
-        for seq in range(1, 5)
+        for seq in activity_seqs
     ]
     store.append(EventFamily.ACTIVITY, prepare_wire_records(EventFamily.ACTIVITY, activity_records))
 
@@ -196,6 +212,74 @@ class TestScoringPipeline:
             result = score_event_stream(store, scoring_date=SCORING_DATE, allow_missing_marker=True)
         assert result.marker_missing
         assert result.daily_scores == {(USER, SCORING_DATE): 8}
+
+    def test_a_single_login_scores_one_point(self, tmp_path: Path) -> None:
+        """A login carries no metrics; an empty scoring_fields is correct.
+
+        Pinned end-to-end because a hand-rolled extraction once reported
+        this case as 0 and it was read as a scoring defect. The kernel is
+        already fixture-gated on it (score-kernel/02-qualification); this
+        asserts the whole store→weights path agrees.
+        """
+        with EventStore(tmp_path / "e.sqlite") as store:
+            _populate(store, activity_kind="login")
+            result = score_event_stream(store, scoring_date=SCORING_DATE)
+
+        assert result.daily_scores == {(USER, SCORING_DATE): 1}
+        assert result.miner_records[0].miner_score_points == 1
+
+
+class TestParityReport:
+    def test_report_shape_and_ordering(self, tmp_path: Path) -> None:
+        with EventStore(tmp_path / "e.sqlite") as store:
+            _populate(store)
+            result = score_event_stream(store, scoring_date=SCORING_DATE)
+
+        report = build_parity_report(result)
+        assert report["epoch"] == SCORING_DATE
+        assert report["scores"] == [{"user_ref_evt": USER, "daily_score": 8}]
+        assert report["scores_hash"].startswith("0x")
+        assert len(report["scores_hash"]) == 66
+
+    def test_report_covers_only_the_scored_epoch(self, tmp_path: Path) -> None:
+        """The window spans 14 days; a parity report is about one of them."""
+        with EventStore(tmp_path / "e.sqlite") as store:
+            _populate(store)
+            result = score_event_stream(store, scoring_date=SCORING_DATE)
+
+        other_day = (USER, "2026-07-10")
+        mutated = replace(result, daily_scores={**result.daily_scores, other_day: 5})
+        report = build_parity_report(mutated)
+
+        assert [row["user_ref_evt"] for row in report["scores"]] == [USER]
+        assert report["scores"][0]["daily_score"] == 8
+
+    def test_hash_is_stable_and_order_independent(self, tmp_path: Path) -> None:
+        """Two implementations that agree must produce the same hash."""
+        with EventStore(tmp_path / "e.sqlite") as store:
+            _populate(store)
+            result = score_event_stream(store, scoring_date=SCORING_DATE)
+
+        other = "usr_evt_" + "9f" * 32
+        forward = replace(result, daily_scores={**result.daily_scores, (other, SCORING_DATE): 3})
+        reversed_insert = replace(
+            result,
+            daily_scores={(other, SCORING_DATE): 3, **result.daily_scores},
+        )
+
+        assert build_parity_report(forward) == build_parity_report(reversed_insert)
+        assert [row["user_ref_evt"] for row in build_parity_report(forward)["scores"]] == sorted(
+            [USER, other]
+        )
+
+    def test_empty_day_still_reports(self, tmp_path: Path) -> None:
+        with EventStore(tmp_path / "e.sqlite") as store:
+            _populate(store)
+            result = score_event_stream(store, scoring_date=SCORING_DATE)
+
+        report = build_parity_report(replace(result, daily_scores={}))
+        assert report["scores"] == []
+        assert report["scores_hash"].startswith("0x")
 
     def test_unregistered_signature_is_excluded_and_surfaced(self, tmp_path: Path) -> None:
         with EventStore(tmp_path / "e.sqlite") as store:
