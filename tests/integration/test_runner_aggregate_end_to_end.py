@@ -48,6 +48,7 @@ from prometheon.validator.config import (
     ValidatorConfig,
     ValidatorRuntimeConfig,
     WalletConfig,
+    WeightSource,
 )
 from prometheon.validator.runner import SubtensorProtocol, ValidatorRunner
 
@@ -205,6 +206,9 @@ def _config(snapshot_keys: dict[str, TrustedKey]) -> ValidatorConfig:
             activity_date="latest",
             submit_weights=True,
             dry_run=False,
+            # This is the snapshot end-to-end test, so it pins the
+            # fallback source explicitly. The live default is `events`.
+            weight_source=WeightSource.SNAPSHOT,
         ),
         phase1=Phase1ConfigSection(),
         burn=BurnConfigSection(

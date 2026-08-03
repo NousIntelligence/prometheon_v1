@@ -48,6 +48,11 @@ class ValidatorState(BaseModel):
     netuid: int = Field(ge=0)
     validator_hotkey: str = Field(min_length=1)
     mode: str = Field(min_length=1)
+    weight_source: str | None = None
+    last_scored_epoch: str | None = None
+    last_scores_hash: str | None = None
+    last_engine_version: str | None = None
+    last_stream_cursors: dict[str, int] | None = None
     last_accepted_snapshot_id: str | None = None
     last_accepted_snapshot_hash: str | None = None
     last_weight_plan_hash: str | None = None
