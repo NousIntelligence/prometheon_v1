@@ -15,8 +15,10 @@ from typing import Any
 import pytest
 
 from prometheon.events.pipeline import (
+    SCORING_WINDOW_DAYS,
     MissingVerdictsError,
     build_parity_report,
+    current_epoch,
     diff_miner_records,
     score_event_stream,
     window_epochs,
@@ -325,3 +327,55 @@ class TestShadowDiff:
         diff = diff_miner_records(snapshot, events)
         assert diff.only_in_snapshot == [HOTKEY]
         assert diff.only_in_events == [other]
+
+
+class TestLiveRollingWindow:
+    """The validator runtime's mode: score the in-progress day.
+
+    Rankings move continuously as activity arrives, so the last window
+    bucket is today so far. Today cannot have a ``verdicts_complete``
+    marker — the platform seals a day the morning after — and treating
+    that absence as an error would make a real-time window impossible.
+    """
+
+    def test_live_scores_without_a_marker_and_does_not_alarm(self, tmp_path: Path) -> None:
+        with EventStore(tmp_path / "e.sqlite") as store:
+            _populate(store, with_marker=False)
+            result = score_event_stream(store, scoring_date=SCORING_DATE, live=True)
+
+        assert result.daily_scores == {(USER, SCORING_DATE): 8}
+        assert result.marker_missing is False  # expected absence, not an alarm
+        assert result.live is True
+
+    def test_sealed_mode_still_refuses_a_day_without_its_marker(self, tmp_path: Path) -> None:
+        """The parity path must keep its guard; only the live path relaxes."""
+        with EventStore(tmp_path / "e.sqlite") as store:
+            _populate(store, with_marker=False)
+            with pytest.raises(MissingVerdictsError):
+                score_event_stream(store, scoring_date=SCORING_DATE)
+
+    def test_window_is_fourteen_buckets_ending_today(self) -> None:
+        epochs = window_epochs(SCORING_DATE)
+        assert len(epochs) == SCORING_WINDOW_DAYS
+        assert epochs[-1] == SCORING_DATE  # the in-progress day
+        assert epochs[0] == "2026-07-01"  # 13 whole days before it
+
+    def test_verdicts_still_apply_to_the_days_that_have_them(self, tmp_path: Path) -> None:
+        """A verdict for an earlier day keeps its weight in live mode.
+
+        Only *today's* verdicts are missing; the rest of the window is
+        weighted exactly as in sealed mode.
+        """
+        with EventStore(tmp_path / "e.sqlite") as store:
+            _populate(store, with_marker=False, weight_bp=2500)
+            result = score_event_stream(store, scoring_date=SCORING_DATE, live=True)
+
+        # floor(8 * 2500 / 10000) = 2 — the verdict applied.
+        assert result.daily_scores == {(USER, SCORING_DATE): 2}
+
+    def test_current_epoch_is_todays_utc_date(self) -> None:
+        from datetime import datetime, timezone
+
+        moment = datetime(2026, 8, 3, 23, 59, 59, tzinfo=timezone.utc)
+        assert current_epoch(moment) == "2026-08-03"
+        assert current_epoch() == datetime.now(timezone.utc).strftime("%Y-%m-%d")

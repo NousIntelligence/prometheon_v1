@@ -8,11 +8,15 @@ Composes the whole recomputation stack over a local :class:`EventStore`:
     activity family  → EventScoringEngine → per-(user, day) daily scores
     attribution      → per-miner sums → the existing engine's MinerRecords
 
-The scoring cutoff is enforced here: the window ending epoch ``D`` is
-scored only after ``verdicts_complete(D)`` has been stored (the platform
-seals D's verdict set once, ~00:05 UTC on D+1). The documented fallback —
-score without D's verdicts after the grace period and alarm — is an
-explicit opt-in (``allow_missing_marker``), never a silent default.
+Two modes, one code path:
+
+- **live** (the validator runtime): score the rolling window ending on the
+  in-progress day. Rankings move continuously as activity arrives. Today
+  has no ``verdicts_complete`` marker and is not expected to.
+- **sealed** (``ingest score``, parity reports): score a completed day,
+  which must carry its marker. The documented fallback — score without it
+  after the grace period and alarm — stays an explicit opt-in
+  (``allow_missing_marker``), never a silent default.
 
 Alarm evidence is surfaced, not swallowed: records excluded for bad
 signatures, a missing marker, or a verdict-count mismatch all ride the
@@ -30,7 +34,7 @@ from __future__ import annotations
 import hashlib
 import re
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Final
 
 from prometheon.events.device_signatures import DeviceKeyRegistry
@@ -77,6 +81,7 @@ class EventStreamScores:
     excluded_signature_verdicts: list[EventVerdict]
     marker_missing: bool
     verdict_count_mismatch: dict[str, tuple[int, int]]
+    live: bool = False
 
 
 def build_parity_report(scores: EventStreamScores) -> dict[str, Any]:
@@ -143,6 +148,19 @@ class ShadowDiff:
         return lines
 
 
+def current_epoch(now: datetime | None = None) -> str:
+    """Today's UTC date — the last bucket of the live rolling window.
+
+    ``epoch_id`` is stamped by the platform's database clock, so this is a
+    local approximation of it. Around midnight two validators can briefly
+    disagree on which day is current and submit different vectors; that is
+    inherent to a real-time window and is resolved by chain consensus, not
+    by us pretending to know a clock we cannot read.
+    """
+    moment = now or datetime.now(timezone.utc)
+    return moment.strftime("%Y-%m-%d")
+
+
 def parse_epoch(value: str) -> str:
     """Validate a ``YYYY-MM-DD`` epoch id and return it unchanged.
 
@@ -172,8 +190,26 @@ def score_event_stream(
     *,
     scoring_date: str,
     allow_missing_marker: bool = False,
+    live: bool = False,
 ) -> EventStreamScores:
-    """Recompute miner records for the window ending ``scoring_date``."""
+    """Recompute miner records for the window ending ``scoring_date``.
+
+    ``live=True`` scores the **in-progress** day: the window's last bucket
+    is today so far, and today's ``verdicts_complete`` marker is neither
+    expected nor alarmed (the platform seals a day the morning after). This
+    is the mode the validator runtime uses — rankings move continuously as
+    activity accumulates, rather than stepping once a day.
+
+    The consequence to understand: today's anti-fraud verdicts do not exist
+    yet, so today's activity scores at full weight until verdicts arrive.
+    The rolling window then corrects it — every later recompute uses the
+    verdict, for as long as that day stays in the window. Exposure is
+    bounded by the platform's verdict latency, not by anything here.
+
+    ``live=False`` (the default) keeps the sealed-day behaviour used by
+    ``ingest score`` for parity reports, where a day without its marker is
+    genuinely incomplete.
+    """
     registry = DeviceKeyRegistry()
     bindings = BindingLedger()
     for identity_record in store.iter_family(EventFamily.IDENTITY):
@@ -205,7 +241,11 @@ def score_event_stream(
         elif core.get("kind") == "verdicts_complete":
             markers[core["applies_to_epoch"]] = core["verdict_count"]
 
-    marker_missing = scoring_date not in markers
+    # In live mode the scored day is still in progress, so its
+    # verdicts_complete marker cannot exist yet — the platform seals a day
+    # once, the morning after. Absence is the expected state, not an alarm,
+    # and blocking on it would make a real-time window impossible.
+    marker_missing = not live and scoring_date not in markers
     if marker_missing and not allow_missing_marker:
         raise MissingVerdictsError(
             f"verdicts_complete({scoring_date}) has not been stored; "
@@ -253,6 +293,7 @@ def score_event_stream(
         excluded_signature_verdicts=excluded,
         marker_missing=marker_missing,
         verdict_count_mismatch=verdict_count_mismatch,
+        live=live,
     )
 
 
@@ -293,6 +334,7 @@ __all__ = [
     "MissingVerdictsError",
     "ShadowDiff",
     "build_parity_report",
+    "current_epoch",
     "diff_miner_records",
     "parse_epoch",
     "score_event_stream",
