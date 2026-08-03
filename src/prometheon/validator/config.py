@@ -25,6 +25,7 @@ development override flags (``allow_legacy_sdk_without_mechid``,
 from __future__ import annotations
 
 import sys
+from enum import Enum
 from pathlib import Path
 from typing import Any, ClassVar, Literal
 
@@ -84,6 +85,19 @@ class PlatformConfig(BaseModel):
     snapshot_keys: dict[str, TrustedKey] = Field(default_factory=dict)
 
 
+class WeightSource(str, Enum):
+    """Where a cycle's miner records come from.
+
+    ``events`` is the live path: recompute from the validator's own event
+    store over the rolling window. ``snapshot`` is the pull-based
+    predecessor, kept as an incident fallback — not a supported steady
+    state, and not where new work goes.
+    """
+
+    EVENTS = "events"
+    SNAPSHOT = "snapshot"
+
+
 class ValidatorRuntimeConfig(BaseModel):
     """The ``[validator]`` section."""
 
@@ -93,6 +107,8 @@ class ValidatorRuntimeConfig(BaseModel):
     activity_date: str = Field(min_length=1, default="latest")
     submit_weights: bool = True
     dry_run: bool = False
+    weight_source: WeightSource = WeightSource.EVENTS
+    events_db: Path = Path(".validator-state/events.sqlite")
 
 
 class SchedulerConfig(BaseModel):
@@ -231,6 +247,7 @@ __all__ = [
     "ValidatorConfig",
     "ValidatorRuntimeConfig",
     "WalletConfig",
+    "WeightSource",
     "WeightSubmissionError",
     "load_validator_config",
 ]
