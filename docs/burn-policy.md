@@ -1,6 +1,17 @@
 # Burn Policy
 
-The burn target is a hotkey whose UID receives a configured fraction of the weight pool. The fraction (`manual_burn_rate_ppm`, in parts-per-million) and the burn target hotkey itself are both carried inside the signed snapshot; they are **not** validator config. Validators consume the signed values verbatim.
+The burn target is a hotkey whose UID receives a configured fraction of the weight pool. Neither the fraction (`manual_burn_rate_ppm`, in parts-per-million) nor the target hotkey is validator config — an operator cannot set either one.
+
+Where they come from depends on the weight path:
+
+| Path | `burn_hotkey` | `manual_burn_rate_ppm` |
+|---|---|---|
+| **Event stream** (live) | the **subnet owner hotkey**, read from chain (`get_subnet_owner_hotkey`) | the locked constant `MANUAL_BURN_RATE_PPM` in `policy.py` |
+| **Snapshot** (fallback) | carried inside the signed snapshot | carried inside the signed snapshot |
+
+On the event path the stream carries no policy fields, and the chain has no burn-rate equivalent — `min_burn` / `max_burn` / `get_subnet_burn_cost()` are all **registration** costs, a different concept. So the rate is a frozen constant next to `DAILY_SCORE_CAP` and `PHASE1_TOP_K`, and changing it is a coordinated release. It is deliberately not config: two operators configuring different rates would submit different weight vectors for reasons unrelated to the data, and nothing would reveal the divergence.
+
+Both paths currently produce the same slice — 150 000 ppm (15%) is the value the platform already signs.
 
 The Phase 1 engine resolves which of four mutually exclusive cases applies on every cycle.
 
@@ -28,7 +39,7 @@ Case D is the only condition under which a compliant validator deliberately skip
 
 Burn is a control surface for the subnet operator. The signed snapshot's `manual_burn_rate_ppm` lets the operator allocate a fraction of emissions to a known burn target (e.g. a treasury or a wallet with no withdrawal rights). The validator does not interpret this — it just allocates the configured fraction to the registered UID.
 
-Because the value is carried inside the signed snapshot, the operator cannot be impersonated. A change to `manual_burn_rate_ppm` requires the platform to re-sign with its Ed25519 key.
+On the snapshot path the value rides inside the signed snapshot, so the operator cannot be impersonated: a change requires the platform to re-sign with its Ed25519 key. On the event path the equivalent guarantee comes from the values being unforgeable in a different way — the target is chain state every validator reads identically, and the rate is compiled in.
 
 ---
 
