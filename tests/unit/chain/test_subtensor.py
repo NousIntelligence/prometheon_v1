@@ -28,6 +28,7 @@ from prometheon.chain.subtensor import (
     SubtensorError,
     _parse_set_weights_result,
     read_hyperparameters,
+    read_subnet_owner_hotkey,
 )
 
 pytestmark = pytest.mark.unit
@@ -285,3 +286,46 @@ class TestReadHyperparametersErrorPaths:
             # AttributeError from the missing method surfaces as
             # SubtensorError via the outer ``except Exception`` guard.
             read_hyperparameters(subtensor, netuid=481)  # type: ignore[arg-type]
+
+
+class TestReadSubnetOwnerHotkey:
+    """The burn target on the event path: read from chain, never defaulted."""
+
+    def test_returns_the_owner_hotkey(self) -> None:
+        class Fake:
+            def get_subnet_owner_hotkey(self, netuid: int) -> str:
+                assert netuid == 481
+                return "5GTCFZ5YNUNUF5XdoFP4gnFMrEud3ddmvu8HGEMHf97npHfZ"
+
+        assert (
+            read_subnet_owner_hotkey(Fake(), netuid=481)
+            == "5GTCFZ5YNUNUF5XdoFP4gnFMrEud3ddmvu8HGEMHf97npHfZ"
+        )
+
+    def test_missing_accessor_fails_loud(self) -> None:
+        """No AttributeError fallback — that shortcut hid a real bug once."""
+
+        class Fake:
+            pass
+
+        with pytest.raises(SubtensorError, match="get_subnet_owner_hotkey"):
+            read_subnet_owner_hotkey(Fake(), netuid=481)
+
+    def test_chain_error_is_wrapped(self) -> None:
+        class Fake:
+            def get_subnet_owner_hotkey(self, netuid: int) -> str:
+                raise RuntimeError("no route to chain")
+
+        with pytest.raises(SubtensorError, match="owner hotkey"):
+            read_subnet_owner_hotkey(Fake(), netuid=481)
+
+    @pytest.mark.parametrize("value", [None, "", 42])
+    def test_unusable_value_is_refused(self, value: object) -> None:
+        """A burn target that silently defaulted would misroute emissions."""
+
+        class Fake:
+            def get_subnet_owner_hotkey(self, netuid: int) -> object:
+                return value
+
+        with pytest.raises(SubtensorError):
+            read_subnet_owner_hotkey(Fake(), netuid=481)

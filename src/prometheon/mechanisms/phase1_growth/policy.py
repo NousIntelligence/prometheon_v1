@@ -28,6 +28,25 @@ PHASE1_TOP_K: Final[int] = 10
 WEIGHT_UNITS: Final[int] = 1_000_000_000
 MAX_BURN_RATE_PPM: Final[int] = 1_000_000
 
+# Phase 1 burn rate, in parts-per-million of the weight pool.
+#
+# Under the snapshot path this rode inside the signed snapshot. The
+# event stream carries no policy fields and the chain has no equivalent —
+# min_burn/max_burn and get_subnet_burn_cost() are REGISTRATION costs, a
+# different concept — so on the event path it is a locked constant here,
+# alongside the other frozen Phase 1 numbers.
+#
+# A constant, not config: two operators who configure different rates
+# would submit different weight vectors for reasons unrelated to the data,
+# and the divergence would be invisible. Changing this is a coordinated
+# release, exactly like changing DAILY_SCORE_CAP or PHASE1_TOP_K.
+#
+# 150_000 (15%) is the value the platform already signs into its own
+# snapshots — including the fixture suite both implementations gate on —
+# and the value pinned in configs/{testnet,finney}.example.toml. The flip
+# to event-derived weights therefore does not move the burn slice.
+MANUAL_BURN_RATE_PPM: Final[int] = 150_000
+
 _SS58_LOOSE_RE: Final[str] = r"^[1-9A-HJ-NP-Za-km-z]{46,48}$"
 
 
@@ -60,6 +79,7 @@ class Phase1Policy(BaseModel):
 __all__ = [
     "ACTIVE_MEMBER_SCORE_THRESHOLD",
     "DAILY_SCORE_CAP",
+    "MANUAL_BURN_RATE_PPM",
     "MAX_BURN_RATE_PPM",
     "MECHANISM_ID",
     "MECHID",
