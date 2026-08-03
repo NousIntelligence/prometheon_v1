@@ -47,12 +47,24 @@ from prometheon.chain.weights import (
     assert_phase1_compatible,
     to_u16_chain_vector,
 )
+from prometheon.events.pipeline import (
+    ENGINE_VERSION,
+    EventStreamScores,
+    build_parity_report,
+    current_epoch,
+    score_event_stream,
+)
+from prometheon.events.records import EventFamily
+from prometheon.events.store import EventStore
 from prometheon.identity.roles import ChainNetwork
 from prometheon.mechanisms.phase1_growth.engine import (
     WeightPlan,
     compute_phase1_weight_plan,
 )
-from prometheon.mechanisms.phase1_growth.policy import Phase1Policy
+from prometheon.mechanisms.phase1_growth.policy import (
+    MANUAL_BURN_RATE_PPM,
+    Phase1Policy,
+)
 from prometheon.mechanisms.phase1_growth.snapshot import MinerRecord
 from prometheon.platform.client import BitFanClient
 from prometheon.platform.endpoints import LATEST, SnapshotMode
@@ -64,7 +76,7 @@ from prometheon.platform.signing import (
     verify_aggregate_snapshot,
     verify_detailed_manifest,
 )
-from prometheon.validator.config import ValidatorConfig
+from prometheon.validator.config import ValidatorConfig, WeightSource
 from prometheon.validator.report import hotkey_fingerprint, report_event
 from prometheon.validator.state import (
     DEFAULT_STATE_DIR,
@@ -118,6 +130,16 @@ class RunnerError(Exception):
     code: str = "validator.runner_error"
 
 
+class EventWeightSourceError(RunnerError):
+    """The local event store cannot produce weights this cycle.
+
+    Raised before any chain interaction, so a cycle that cannot score
+    submits nothing rather than submitting from partial inputs.
+    """
+
+    code: str = "validator.event_weight_source"
+
+
 class SubtensorProtocol(Protocol):
     """Minimal interface the runner needs from the subtensor adapter.
 
@@ -127,6 +149,7 @@ class SubtensorProtocol(Protocol):
 
     def sync_metagraph(self, netuid: int) -> MetagraphView: ...
     def read_hyperparameters(self, netuid: int) -> ChainHyperparameters: ...
+    def read_subnet_owner_hotkey(self, netuid: int) -> str: ...
     def submit_set_weights(
         self,
         *,
@@ -172,6 +195,9 @@ class ValidatorRunner:
         self._wallet_hotkey = wallet_hotkey
         self._capabilities = capabilities
         self._state_directory = Path(state_directory)
+        self._last_event_scores: EventStreamScores | None = None
+        self._last_event_cursors: dict[str, int] = {}
+        self._last_scores_hash: str | None = None
 
     # -----------------------------------------------------------------
     # Public entry point
@@ -203,7 +229,10 @@ class ValidatorRunner:
     # -----------------------------------------------------------------
 
     def _run_cycle(self) -> CycleResult:
-        records, snapshot_id, activity_date = self._fetch_and_verify_snapshot()
+        if self._config.validator.weight_source is WeightSource.EVENTS:
+            records, snapshot_id, activity_date = self._score_event_stream()
+        else:
+            records, snapshot_id, activity_date = self._fetch_and_verify_snapshot()
         metagraph = self._subtensor.sync_metagraph(self._config.chain.netuid)
         hyperparams = self._subtensor.read_hyperparameters(self._config.chain.netuid)
 
@@ -216,10 +245,7 @@ class ValidatorRunner:
             allow_legacy_sdk_without_mechid=self._config.chain.allow_legacy_sdk_without_mechid,
         )
 
-        policy = Phase1Policy(
-            burn_hotkey=self._signed_burn_hotkey(records, snapshot_id),
-            manual_burn_rate_ppm=self._signed_burn_rate_ppm(),
-        )
+        policy = self._burn_policy()
         plan = compute_phase1_weight_plan(
             records,
             metagraph=metagraph,
@@ -310,13 +336,82 @@ class ValidatorRunner:
         self._burn_rate_ppm_signed = manifest.manual_burn_rate_ppm
         return accumulator.finalize(), manifest.snapshot_id, manifest.activity_date
 
-    def _signed_burn_hotkey(self, records: list[MinerRecord], snapshot_id: str) -> str:
-        """Return the burn hotkey lifted from the most recent signed snapshot."""
-        return self._burn_hotkey_signed
+    # -----------------------------------------------------------------
+    # Event-stream scoring (the live weight path)
+    # -----------------------------------------------------------------
 
-    def _signed_burn_rate_ppm(self) -> int:
-        """Return the burn rate lifted from the most recent signed snapshot."""
-        return self._burn_rate_ppm_signed
+    def _score_event_stream(self) -> tuple[list[MinerRecord], str, str]:
+        """Recompute miner records from the local event store.
+
+        Substitutes exactly one call — the snapshot fetch — and hands the
+        identical ``MinerRecord`` list to the identical downstream path:
+        eligibility, ranking, largest-remainder allocation, UID resolution
+        and the ``set_weights`` adapter are untouched.
+
+        Scores the **live rolling window** ending on the in-progress day,
+        so rankings move with activity rather than stepping once a day.
+        The store is opened **read-only**: the ingest service is its
+        writer, and the weight path must never become a second one.
+
+        There is deliberately no completeness gate. The validator scores
+        what its own store holds and submits; two validators whose stores
+        differ will submit different vectors, and chain consensus resolves
+        that. Digest verification stays an operator diagnostic
+        (``ingest check-day``), never a precondition for setting weights —
+        a validator that stops submitting to protect a determinism
+        property loses dividends and eventually its registration, which is
+        a worse failure than a temporarily divergent vector.
+        """
+        epoch = current_epoch()
+        db_path = self._config.validator.events_db
+        if not db_path.exists():
+            raise EventWeightSourceError(
+                f"event store {db_path} does not exist; run 'prometheon ingest serve' "
+                "to receive the stream before scoring from it"
+            )
+
+        with EventStore(db_path, read_only=True) as store:
+            scores = score_event_stream(store, scoring_date=epoch, live=True)
+            cursors = {family.value: store.last_stored_seq(family) for family in EventFamily}
+
+        report = build_parity_report(scores)
+        self._last_event_scores = scores
+        self._last_event_cursors = cursors
+        self._last_scores_hash = str(report["scores_hash"])
+
+        report_event(
+            event_type="cycle_scored_from_events",
+            state_directory=self._state_directory,
+            epoch=epoch,
+            scores_hash=self._last_scores_hash,
+            engine_version=ENGINE_VERSION,
+            miner_count=len(scores.miner_records),
+            scored_users=len(report["scores"]),
+            cursors=cursors,
+        )
+        # The plan's identity fields carry the inputs, not a fake snapshot
+        # id — anything that reads state must be able to tell the two
+        # sources apart at a glance.
+        return scores.miner_records, f"events:{epoch}:{self._last_scores_hash[2:18]}", epoch
+
+    def _burn_policy(self) -> Phase1Policy:
+        """Burn target + rate for this cycle.
+
+        On the event path the stream carries no policy fields, so the
+        target is the subnet owner hotkey read from chain and the rate is
+        the locked Phase 1 constant. Both are identical for every
+        validator by construction. On the snapshot fallback they keep
+        coming from the signed snapshot header.
+        """
+        if self._config.validator.weight_source is WeightSource.EVENTS:
+            return Phase1Policy(
+                burn_hotkey=self._subtensor.read_subnet_owner_hotkey(self._config.chain.netuid),
+                manual_burn_rate_ppm=MANUAL_BURN_RATE_PPM,
+            )
+        return Phase1Policy(
+            burn_hotkey=self._burn_hotkey_signed,
+            manual_burn_rate_ppm=self._burn_rate_ppm_signed,
+        )
 
     # -----------------------------------------------------------------
     # State persistence
@@ -330,7 +425,23 @@ class ValidatorRunner:
         submitted: bool,
     ) -> None:
         previous = read_state(directory=self._state_directory) or self._initial_state()
+        # Event mode records the inputs that produced the vector, so
+        # `prometheon status` can answer "which data made these weights?"
+        # without re-deriving anything.
+        event_fields: dict[str, object] = {
+            "weight_source": self._config.validator.weight_source.value
+        }
+        if self._config.validator.weight_source is WeightSource.EVENTS:
+            event_fields.update(
+                last_scored_epoch=self._last_event_scores.scoring_date
+                if self._last_event_scores
+                else None,
+                last_scores_hash=self._last_scores_hash,
+                last_engine_version=ENGINE_VERSION,
+                last_stream_cursors=dict(self._last_event_cursors) or None,
+            )
         updated = previous.with_update(
+            **event_fields,
             last_accepted_snapshot_id=plan.snapshot_id,
             last_weight_plan_hash=None,
             last_metagraph_block=plan.metagraph_block,

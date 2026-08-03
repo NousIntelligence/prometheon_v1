@@ -128,10 +128,29 @@ def load_record_mapping(canonical_bytes: bytes) -> dict[str, Any]:
 class EventStore:
     """SQLite-backed store; one instance per process, callers serialize."""
 
-    def __init__(self, path: Path | str, *, busy_timeout_ms: int = _BUSY_TIMEOUT_MS) -> None:
+    def __init__(
+        self,
+        path: Path | str,
+        *,
+        busy_timeout_ms: int = _BUSY_TIMEOUT_MS,
+        read_only: bool = False,
+    ) -> None:
         # check_same_thread=False: the ingest app runs store calls on a
         # threadpool worker while holding an asyncio lock — access is
         # serialized by contract, so cross-thread use is safe.
+        #
+        # read_only=True opens the same file through SQLite's `mode=ro`
+        # URI. The weight path reads this store while the ingest service
+        # writes it; enforcing read-only at the connection means a bug in
+        # the reader cannot corrupt the stream, rather than relying on the
+        # reader to be careful.
+        self._read_only = read_only
+        if read_only:
+            self._connection = sqlite3.connect(
+                f"file:{Path(path)}?mode=ro", uri=True, check_same_thread=False
+            )
+            self._connection.execute(f"PRAGMA busy_timeout={int(busy_timeout_ms)}")
+            return
         self._connection = sqlite3.connect(str(path), check_same_thread=False)
         self._connection.execute("PRAGMA journal_mode=WAL")
         self._connection.execute("PRAGMA synchronous=FULL")
