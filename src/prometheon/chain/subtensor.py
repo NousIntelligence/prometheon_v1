@@ -129,6 +129,42 @@ def sync_metagraph_view(subtensor: Any, *, netuid: int) -> MetagraphView:
     )
 
 
+def read_subnet_owner_hotkey(subtensor: Any, *, netuid: int) -> str:
+    """Read the subnet owner hotkey — Phase 1's burn target — from chain.
+
+    Under the event-stream weight path the burn target is no longer lifted
+    from a signed snapshot; it is the subnet owner hotkey, which the chain
+    already publishes. That makes it deterministic across validators for
+    free: every validator reads the same storage item, and no operator can
+    misconfigure it.
+
+    Fails loud on a missing accessor rather than falling back. The same
+    ``except AttributeError`` shortcut on ``read_hyperparameters`` once
+    masked a real SDK mismatch and silently defaulted the commit-reveal
+    gate to disabled; a burn target that silently defaulted would misroute
+    emissions, which is worse.
+    """
+    accessor: Any = getattr(subtensor, "get_subnet_owner_hotkey", _MISSING)
+    if accessor is _MISSING:
+        raise SubtensorError(
+            "Subtensor is missing 'get_subnet_owner_hotkey'; the installed "
+            "bittensor SDK is incompatible with this Phase 1 build"
+        )
+    try:
+        owner: Any = accessor(netuid=netuid)
+    except Exception as exc:
+        raise SubtensorError(
+            f"could not read the subnet owner hotkey for netuid={netuid}: {exc}"
+        ) from exc
+
+    if not isinstance(owner, str) or not owner:
+        raise SubtensorError(
+            f"subnet owner hotkey for netuid={netuid} is {owner!r}; the subnet "
+            "may not exist on this network"
+        )
+    return owner
+
+
 def read_hyperparameters(subtensor: Any, *, netuid: int) -> ChainHyperparameters:
     """Read the Phase-1-relevant subnet hyperparameters from the chain.
 
@@ -333,6 +369,7 @@ __all__ = [
     "connect",
     "detect_capabilities",
     "read_hyperparameters",
+    "read_subnet_owner_hotkey",
     "submit_set_weights",
     "sync_metagraph_view",
 ]
