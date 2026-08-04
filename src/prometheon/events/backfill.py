@@ -446,7 +446,12 @@ class BackfillClient:
                 parsed: Any = response.json()
             except ValueError:
                 parsed = response.text
-            if response.status_code not in (200, 201, 202) or is_error_envelope(parsed):
+            # Any 2xx is acceptance. Enumerating codes meant a platform
+            # answering 204 No Content — the natural reply to "stored,
+            # nothing to return" — would be read as failure and retried
+            # forever against an endpoint that had already accepted.
+            accepted = 200 <= response.status_code < 300
+            if not accepted or is_error_envelope(parsed):
                 raise self._failure(path, response.status_code, parsed, {})
             if not isinstance(parsed, dict):
                 # A 2xx with a non-object body still means "accepted"; the

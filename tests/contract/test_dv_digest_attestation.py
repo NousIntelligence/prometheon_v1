@@ -432,3 +432,39 @@ class TestSweepResilience:
 
         assert [o.status for o in second] == ["submitted"], "the failed delivery must be retried"
         assert read_undelivered(tmp_path / "state") == []
+
+
+class TestSubmissionAcceptance:
+    """Any 2xx means accepted, including bodiless ones."""
+
+    @pytest.mark.parametrize("status", [200, 201, 202, 204])
+    def test_every_2xx_counts_as_delivered(self, tmp_path: Path, status: int) -> None:
+        """204 No Content is the natural reply to "stored, nothing to return".
+
+        Enumerating 200/201/202 meant a platform answering 204 was read as a
+        failure and re-POSTed forever to an endpoint that had already
+        accepted the attestation.
+        """
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path == ATTESTATION_PATH:
+                if status == 204:
+                    return httpx.Response(204)
+                return httpx.Response(status, json={"success": True, "data": {}, "meta": {}})
+            payload = _signed_digest_payload(DIGEST_ENV)
+            payload["epoch_id"] = request.url.params.get("epoch")
+            return _ok(payload)
+
+        attestor = DigestAttestor(
+            client=_client(handler),
+            keypair=VALIDATOR,
+            state_directory=tmp_path / "state",
+            submit=True,
+            families=(EventFamily.ACTIVITY,),
+            lookback_days=1,
+        )
+        with _store_with_fixture_day(tmp_path / "e.sqlite") as store:
+            outcomes = attestor.attest_pending(store=store, today="2026-07-15")
+
+        assert [o.status for o in outcomes] == ["submitted"], outcomes
+        assert read_undelivered(tmp_path / "state") == []
