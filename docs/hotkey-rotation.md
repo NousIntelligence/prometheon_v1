@@ -145,6 +145,21 @@ Both rotation and recovery change the **active** hotkey on the account; previous
 
 ---
 
+## Validators: rotation and day-digest attestations
+
+A rotation invalidates attestations signed by the old hotkey. The platform
+verifies that the signer is a registered validator, so any attestation still
+awaiting delivery when you rotate is refused permanently and recorded as
+`rejected` in `attestations.ndjson`; new ones are accepted once the platform
+holds the new binding.
+
+Nothing is lost — the signed records stay in your local log — but expect the
+rejections rather than being surprised by them, and do not rotate in the
+minutes before a day seals if you can avoid it. See
+[`digest-attestation.md`](./digest-attestation.md).
+
+---
+
 ## Failure Modes
 
 | Code | Cause | Resolution |
