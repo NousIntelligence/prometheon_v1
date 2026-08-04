@@ -32,9 +32,20 @@ from prometheon.identity.roles import ChainNetwork
 
 
 class SubtensorError(Exception):
-    """Base exception for subtensor-side failures."""
+    """Base exception for subtensor-side failures.
+
+    Raised for connect, metagraph sync, and hyperparameter reads. Weight
+    submission failures raise :class:`SetWeightsFailedError` instead, because
+    the two need different remediation and operators alert on the codes.
+    """
 
     code: str = "chain.subtensor_error"
+
+
+class SetWeightsFailedError(SubtensorError):
+    """The ``set_weights`` extrinsic was rejected or reported failure."""
+
+    code: str = "chain.set_weights_failed"
 
 
 def connect(network: ChainNetwork | str) -> Any:
@@ -277,7 +288,7 @@ def submit_set_weights(
     try:
         result = subtensor.set_weights(**kwargs)
     except Exception as exc:
-        raise SubtensorError(f"set_weights failed: {exc}") from exc
+        raise SetWeightsFailedError(f"set_weights failed: {exc}") from exc
 
     return _parse_set_weights_result(result)
 
@@ -296,7 +307,7 @@ def _parse_set_weights_result(result: Any) -> str | None:
     # do not have to import the dataclass directly.
     if hasattr(result, "success") and hasattr(result, "message"):
         if not result.success:
-            raise SubtensorError(
+            raise SetWeightsFailedError(
                 f"set_weights returned failure: {_summarize_failed_response(result)}"
             )
         # Prefer the on-chain extrinsic hash when the receipt exposes one.
@@ -313,13 +324,13 @@ def _parse_set_weights_result(result: Any) -> str | None:
     if isinstance(result, tuple) and len(result) >= 2:
         success = bool(result[0])
         if not success:
-            raise SubtensorError(f"set_weights returned failure: {result[1]!r}")
+            raise SetWeightsFailedError(f"set_weights returned failure: {result[1]!r}")
         return str(result[1]) if result[1] else None
 
     # Legacy SDK shape: bare bool.
     if isinstance(result, bool):
         if not result:
-            raise SubtensorError("set_weights returned False with no message")
+            raise SetWeightsFailedError("set_weights returned False with no message")
         return None
 
     # Legacy SDK shape: raw hash string.
@@ -365,6 +376,7 @@ def _summarize_failed_response(result: Any) -> str:
 
 
 __all__ = [
+    "SetWeightsFailedError",
     "SubtensorError",
     "connect",
     "detect_capabilities",

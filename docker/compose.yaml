@@ -2,29 +2,44 @@
 #
 #   export PROMETHEON_VALIDATOR_API_TOKEN="<long-lived token>"   # runner only
 #   export PROMETHEON_CONFIG="$HOME/prometheon-testnet.toml"
+#   export PROMETHEON_UID=$(id -u) PROMETHEON_GID=$(id -g)
+#   mkdir -p ./validator-state
 #   docker compose -f docker/compose.yaml up --build
 #
 # `ingest` receives the platform's signed event pushes and is the only writer
 # of the event store. `validator` opens that same store read-only, rescores the
-# rolling window every cycle, and submits weights. Both mount one named volume
-# so they share the file, and `[validator] events_db` in your config must be
-# the absolute path below — the default is relative and would resolve
+# rolling window every cycle, and submits weights. Both mount one state
+# directory so they share the file, and `[validator] events_db` in your config
+# must be the absolute path below — the default is relative and would resolve
 # differently inside each container:
 #
 #   events_db = "/var/lib/prometheon/state/events.sqlite"
+#
+# **Why `user:` and why the wallet is not mounted read-only.** The image ships a
+# `prometheon` user (UID 10001), but your wallet keyfiles are mode 0600 owned by
+# *your* UID, and a bind-mounted state directory is owned by you too — so a
+# container running as 10001 can read neither and write neither. Both services
+# therefore run as your own UID/GID. The wallet mount is read-write because
+# `import bittensor` unconditionally creates `~/.bittensor/miners` and
+# `~/.bittensor/wallets`; a read-only mount fails at import with
+# `OSError: [Errno 30] Read-only file system`. Signing itself never writes.
 #
 # Put a TLS reverse proxy in front of `ingest`: the platform dials a public
 # HTTPS URL and treats a redirect as a delivery failure. See
 # docs/decentralized-validation.md for the proxy config and endpoint
 # registration.
 
+x-common: &common
+  image: prometheon-validator:dev
+  restart: unless-stopped
+  user: "${PROMETHEON_UID:?run: export PROMETHEON_UID=$(id -u) PROMETHEON_GID=$(id -g)}:${PROMETHEON_GID:?run: export PROMETHEON_UID=$(id -u) PROMETHEON_GID=$(id -g)}"
+
 services:
   ingest:
-    image: prometheon-validator:dev
+    <<: *common
     build:
       context: ..
       dockerfile: docker/Dockerfile.validator
-    restart: unless-stopped
     ports:
       # Bound to loopback — the reverse proxy is what faces the internet.
       - "127.0.0.1:8541:8541"
@@ -33,7 +48,7 @@ services:
     # `ingest register-endpoint` (a one-off, run by hand) needs one.
     volumes:
       - ${PROMETHEON_CONFIG:?set this to the path of your validator TOML}:/etc/prometheon/config.toml:ro
-      - state:/var/lib/prometheon/state
+      - ${PROMETHEON_STATE:-./validator-state}:/var/lib/prometheon/state
     command:
       - ingest
       - serve
@@ -56,23 +71,22 @@ services:
       start_period: 10s
 
   validator:
-    image: prometheon-validator:dev
-    restart: unless-stopped
+    <<: *common
     # Ordering only, not a hard dependency: if ingest is down the runner fails
     # its cycle with validator.event_weight_source and retries on schedule.
     depends_on:
       - ingest
     environment:
       PROMETHEON_VALIDATOR_API_TOKEN: ${PROMETHEON_VALIDATOR_API_TOKEN:?set this to your long-lived validator token}
+      # Explicit: your UID has no passwd entry inside the container, so HOME
+      # would otherwise be unset and bittensor could not find the wallet.
+      HOME: /home/prometheon
     volumes:
-      - ${HOME}/.bittensor:/home/prometheon/.bittensor:ro
+      - ${HOME}/.bittensor:/home/prometheon/.bittensor
       - ${PROMETHEON_CONFIG:?set this to the path of your validator TOML}:/etc/prometheon/config.toml:ro
-      - state:/var/lib/prometheon/state
+      - ${PROMETHEON_STATE:-./validator-state}:/var/lib/prometheon/state
     command:
       - validator
       - run
       - --config=/etc/prometheon/config.toml
       - --state-directory=/var/lib/prometheon/state
-
-volumes:
-  state:

@@ -21,20 +21,28 @@ This binary does not submit subnet-side work. Phase 1 miners are
 rewarded for real growth of a BitFan Fan Group, which happens
 entirely off-chain.
 
-To participate as a miner you need to:
+To participate as a miner you need to, in this order:
 
-  1. Register a Bittensor hotkey on the subnet.
-  2. Create a BitFan platform account and obtain an API token.
-  3. Verify your identity with the platform:
+  1. Create a BitFan account and a Fan Group, and start growing it.
+     This comes first: verify-miner rejects you unless you already
+     lead a Fan Group.
+  2. Register a Bittensor hotkey on the subnet.
+  3. Get a one-time bootstrap token from the BitFan portal.
+  4. Bind that hotkey to your account (testnet values shown):
 
-         prometheon verify-miner \\
-             --username <user>      \\
-             --email <email>        \\
-             --api-token <token>    \\
+         uv run prometheon verify-miner \\
+             --username <user> \\
+             --email <email> \\
+             --api-token <bootstrap token> \\
              --wallet-name <wallet> \\
-             --wallet-hotkey <hotkey>
+             --wallet-hotkey <hotkey> \\
+             --platform-base-url https://subnet-api.bitfan.ai \\
+             --platform-instance-id bitfan-staging \\
+             --chain-network test \\
+             --netuid 481
 
-  4. Create a Fan Group on BitFan and grow active users.
+     The last four options are required; the command errors without
+     them. Use your own environment's values for mainnet.
 
 Rewards flow from scored user activity in your Fan Group, not from
 running this entrypoint. There is no scoring code running here, no
