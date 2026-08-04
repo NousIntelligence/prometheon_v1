@@ -234,7 +234,7 @@ Phase 1 is live on Bittensor testnet as **netuid 481**. The mechanism is fixed a
 
 ## License
 
-[MIT](./LICENSE) — © 2026 NousIntelligence.
+[MIT](./LICENSE) — © 2026 BitSpace.
 
 ## Reporting Vulnerabilities
 
