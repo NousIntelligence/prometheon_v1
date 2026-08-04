@@ -132,7 +132,7 @@ Two bounds keep the sweep out of the way of weight submission:
 
 - **A wall-clock budget per cycle** (30 s by default). Fourteen days across
   four families is 56 round trips; against a slow read API an unbounded sweep
-  would add minutes to a 10-minute cycle. When the budget runs out the sweep
+  would add minutes to a 15-minute cycle. When the budget runs out the sweep
   returns `deferred` and resumes where it stopped on the next pass — an
   unsigned day simply stays out of the log. The `ingest attest` command has
   no budget, because an operator is present and waiting is the point.
