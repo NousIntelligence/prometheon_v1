@@ -112,6 +112,13 @@ class ValidatorRuntimeConfig(BaseModel):
     dry_run: bool = False
     weight_source: WeightSource = WeightSource.EVENTS
     events_db: Path = Path(".validator-state/events.sqlite")
+    # Countersign each sealed day digest that matches the local record set.
+    # Local by default: the signature is written to attestations.ndjson
+    # beside the state file whether or not it is delivered anywhere.
+    attest_digests: bool = True
+    # Also POST each attestation to the platform. Requires the platform to
+    # expose the attestation endpoint; enable once it does.
+    submit_attestations: bool = False
 
 
 class SchedulerConfig(BaseModel):

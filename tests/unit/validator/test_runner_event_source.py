@@ -156,7 +156,12 @@ class _FakeSubtensor:
         return "0xdeadbeef"
 
 
-def _runner(config: Any, tmp_path: Path, subtensor: _FakeSubtensor) -> ValidatorRunner:
+def _runner(
+    config: Any,
+    tmp_path: Path,
+    subtensor: _FakeSubtensor,
+    attestor: Any = None,
+) -> ValidatorRunner:
     class _Keypair:
         ss58_address = VALIDATOR
 
@@ -169,6 +174,7 @@ def _runner(config: Any, tmp_path: Path, subtensor: _FakeSubtensor) -> Validator
             supports_mechid=True, sdk_version="10.5.0", python_version="3.12"
         ),
         state_directory=tmp_path / "state",
+        attestor=attestor,
     )
 
 
@@ -383,3 +389,75 @@ class TestMarkerWarningIsNotRepeated:
             if _json.loads(line).get("event_type") == "cycle_missing_verdict_markers"
         ]
         assert len(warnings) <= 1, f"warning repeated {len(warnings)} times across 3 cycles"
+
+
+class _RecordingAttestor:
+    """Stands in for :class:`DigestAttestor` at the runner boundary.
+
+    Only the call contract matters here: the runner must invoke it once per
+    cycle, pass the open store and today's epoch, and survive whatever it
+    raises.
+    """
+
+    def __init__(self, *, raises: Exception | None = None) -> None:
+        self.calls: list[str] = []
+        self._raises = raises
+
+    def attest_pending(self, *, store: Any, today: str) -> list[Any]:
+        self.calls.append(today)
+        if self._raises is not None:
+            raise self._raises
+        return []
+
+
+class TestDigestAttestationHook:
+    """Attestation is bookkeeping beside the cycle, never part of it."""
+
+    def test_runs_once_per_cycle_with_todays_epoch(self, tmp_path: Path, event_config: Any) -> None:
+        epoch = current_epoch()
+        _seed_store(tmp_path / "events.sqlite", epoch)
+        attestor = _RecordingAttestor()
+
+        result = _runner(event_config, tmp_path, _FakeSubtensor(), attestor).run_once()
+
+        assert result.submitted is True
+        assert attestor.calls == [epoch]
+
+    def test_attestation_failure_does_not_fail_the_cycle(
+        self, tmp_path: Path, event_config: Any
+    ) -> None:
+        """A read-API outage must not stop weights from being submitted."""
+        epoch = current_epoch()
+        _seed_store(tmp_path / "events.sqlite", epoch)
+        attestor = _RecordingAttestor(raises=RuntimeError("read API unreachable"))
+
+        result = _runner(event_config, tmp_path, _FakeSubtensor(), attestor).run_once()
+
+        assert result.submitted is True, "attestation must never block submission"
+        assert attestor.calls == [epoch]
+
+    def test_attestation_still_runs_when_the_cycle_fails(
+        self, tmp_path: Path, event_config: Any
+    ) -> None:
+        """The records exist regardless of what the chain half did.
+
+        A validator whose set_weights failed still received the day and can
+        still say so, so the attestation pass belongs outside the success
+        path.
+        """
+        epoch = current_epoch()
+        _seed_store(tmp_path / "events.sqlite", epoch)
+        attestor = _RecordingAttestor()
+
+        subtensor = _FakeSubtensor()
+
+        def _boom(**kwargs: Any) -> str | None:
+            raise RuntimeError("chain refused the extrinsic")
+
+        subtensor.submit_set_weights = _boom  # type: ignore[method-assign]
+        runner = _runner(event_config, tmp_path, subtensor, attestor)
+
+        with pytest.raises(RuntimeError, match="chain refused"):
+            runner.run_once()
+
+        assert attestor.calls == [epoch]
