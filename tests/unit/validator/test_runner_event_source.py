@@ -267,3 +267,91 @@ def event_config(tmp_path: Path) -> Any:
             )
         }
     )
+
+
+class TestEmptyWindowFailsClosed:
+    """An empty store must not become a full-burn vector.
+
+    With no records the engine produces no eligible miners, and the burn
+    rules then route 100% of the weight pool to the burn UID — a real
+    economic action taken on absent input. "Nobody qualified" and "nothing
+    arrived" are indistinguishable downstream, so the runner separates
+    them before the plan is built.
+    """
+
+    def test_present_but_empty_store_submits_nothing(
+        self, tmp_path: Path, event_config: Any
+    ) -> None:
+        db = tmp_path / "events.sqlite"
+        EventStore(db).close()  # exists, schema created, zero records
+        subtensor = _FakeSubtensor()
+
+        with pytest.raises(EventWeightSourceError, match="no records for the scoring window"):
+            _runner(event_config, tmp_path, subtensor).run_once()
+
+        assert subtensor.submitted == [], "an empty window must never reach set_weights"
+
+    def test_records_outside_the_window_do_not_count(
+        self, tmp_path: Path, event_config: Any
+    ) -> None:
+        """A long-down validator holding only stale data is equally empty."""
+        db = tmp_path / "events.sqlite"
+        _seed_store(db, "2020-01-01")
+        subtensor = _FakeSubtensor()
+
+        with pytest.raises(EventWeightSourceError, match="no records for the scoring window"):
+            _runner(event_config, tmp_path, subtensor).run_once()
+
+        assert subtensor.submitted == []
+
+    def test_records_in_the_window_still_score_normally(
+        self, tmp_path: Path, event_config: Any
+    ) -> None:
+        """The guard must not fire on a legitimate day."""
+        epoch = current_epoch()
+        _seed_store(tmp_path / "events.sqlite", epoch)
+
+        result = _runner(event_config, tmp_path, _FakeSubtensor()).run_once()
+
+        assert result.submitted is True
+
+
+class TestQuietStreamStillSubmits:
+    """A live stream with no scored activity must NOT trip the guard.
+
+    The platform seals a verdicts_complete marker every day even when
+    nothing happened, so a healthy stream always leaves records in the
+    window. A quiet subnet therefore still scores — and burns, which is the
+    honest verdict when no miner earned anything. Only a dead stream stops.
+    This is the pre-launch state of this subnet, so getting it wrong would
+    halt every validator today.
+    """
+
+    def test_markers_only_window_scores_and_submits(
+        self, tmp_path: Path, event_config: Any
+    ) -> None:
+        from prometheon.events.store import prepare_wire_records
+
+        epoch = current_epoch()
+        db = tmp_path / "events.sqlite"
+        with EventStore(db) as store:
+            marker = _envelope(
+                "exclusion",
+                1,
+                epoch,
+                {"kind": "verdicts_complete", "applies_to_epoch": epoch, "verdict_count": 0},
+                user_ref_evt=None,
+            )
+            store.append(
+                EventFamily.EXCLUSION,
+                prepare_wire_records(EventFamily.EXCLUSION, [marker]),
+            )
+
+        subtensor = _FakeSubtensor()
+        result = _runner(event_config, tmp_path, subtensor).run_once()
+
+        # No activity anywhere, so no miner qualifies: the engine routes the
+        # whole pool to the burn UID. That is a verdict, not a malfunction.
+        assert result.plan.status == "ready"
+        assert result.plan.burn_case == "C"
+        assert subtensor.submitted, "a quiet but live stream must still submit"

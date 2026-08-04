@@ -22,7 +22,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from prometheon.cli.ingest_cmd import build_backfill_config, ingest
 from prometheon.events.records import EventFamily, record_canonical_bytes
-from prometheon.events.store import EventStore
+from prometheon.events.store import EventStore, prepare_wire_records
 from prometheon.platform.wire import CHAIN_NETWORK_HEADER, PLATFORM_INSTANCE_ID_HEADER
 from prometheon.security.canonical import DOMAIN_DAY_DIGEST, to_canonical_bytes
 from prometheon.validator.config import load_validator_config
@@ -560,3 +560,79 @@ class TestSubmitParityCommand:
         )
         assert result.exit_code == 0, result.output
         assert "parity clean" in result.output
+
+
+class TestPruneCommand:
+    """Retention had a policy and no tool; this is the tool."""
+
+    def _store_with_old_records(self, tmp_path: Path) -> Path:
+        from datetime import datetime, timedelta, timezone
+
+        db = tmp_path / "prune.sqlite"
+        old = (datetime.now(timezone.utc) - timedelta(days=90)).strftime("%Y-%m-%d")
+        entries = _entries()
+        with EventStore(db) as store:
+            records = []
+            for record in BATCH["envelope"]["records"]:
+                raw = dict(record)
+                raw["epoch_id"] = old
+                records.append(raw)
+            store._connection.execute(
+                "INSERT INTO event_cursors (family, last_stored_seq) VALUES (?, ?)",
+                (EventFamily.ACTIVITY.value, records[0]["seq"] - 1),
+            )
+            store._connection.commit()
+            store.append(EventFamily.ACTIVITY, prepare_wire_records(EventFamily.ACTIVITY, records))
+            store._connection.execute(
+                "INSERT INTO ingest_nonces (nonce, seen_at) VALUES (?, ?)",
+                ("stale-nonce", "2020-01-01T00:00:00Z"),
+            )
+            store._connection.commit()
+        assert entries  # fixture sanity
+        return db
+
+    def test_dry_run_reports_without_deleting(self, tmp_path: Path) -> None:
+        db = self._store_with_old_records(tmp_path)
+        result = CliRunner().invoke(ingest, ["prune", "--db", str(db), "--dry-run"])
+
+        assert result.exit_code == 0, result.output
+        assert "would prune" in result.output
+        with EventStore(db, read_only=True) as store:
+            assert store.record_count_for_epoch(EventFamily.ACTIVITY, "2020-01-01") == 0
+            remaining = store._connection.execute("SELECT COUNT(*) FROM event_records").fetchone()[
+                0
+            ]
+        assert remaining > 0, "dry run must delete nothing"
+
+    def test_prune_removes_stale_records_and_nonces(self, tmp_path: Path) -> None:
+        db = self._store_with_old_records(tmp_path)
+        result = CliRunner().invoke(ingest, ["prune", "--db", str(db)])
+
+        assert result.exit_code == 0, result.output
+        assert "pruned" in result.output
+        with EventStore(db, read_only=True) as store:
+            remaining = store._connection.execute("SELECT COUNT(*) FROM event_records").fetchone()[
+                0
+            ]
+            nonces = store._connection.execute("SELECT COUNT(*) FROM ingest_nonces").fetchone()[0]
+        assert remaining == 0
+        assert nonces == 0
+
+    def test_cursor_survives_pruning(self, tmp_path: Path) -> None:
+        """Retention and stream position are independent."""
+        db = self._store_with_old_records(tmp_path)
+        with EventStore(db, read_only=True) as store:
+            before = store.last_stored_seq(EventFamily.ACTIVITY)
+
+        CliRunner().invoke(ingest, ["prune", "--db", str(db)])
+
+        with EventStore(db, read_only=True) as store:
+            assert store.last_stored_seq(EventFamily.ACTIVITY) == before
+
+    def test_refuses_to_prune_inside_the_scoring_window(self, tmp_path: Path) -> None:
+        """--keep-epochs below the floor would delete days the window needs."""
+        db = self._store_with_old_records(tmp_path)
+        result = CliRunner().invoke(ingest, ["prune", "--db", str(db), "--keep-epochs", "5"])
+
+        assert result.exit_code != 0
+        assert "retention floor" in result.output
