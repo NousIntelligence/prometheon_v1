@@ -50,6 +50,7 @@ from prometheon.validator.attestor import (
     DigestAttestor,
     read_attested_keys,
     read_undelivered,
+    summarize,
 )
 
 pytestmark = pytest.mark.contract
@@ -468,3 +469,75 @@ class TestSubmissionAcceptance:
 
         assert [o.status for o in outcomes] == ["submitted"], outcomes
         assert read_undelivered(tmp_path / "state") == []
+
+
+class TestPermanentRejection:
+    """A refusal the platform will never reverse must not be re-sent forever."""
+
+    def _attestor(self, tmp_path: Path, handler: Any) -> DigestAttestor:
+        return DigestAttestor(
+            client=_client(handler),
+            keypair=VALIDATOR,
+            state_directory=tmp_path / "state",
+            submit=True,
+            families=(EventFamily.ACTIVITY,),
+            lookback_days=1,
+        )
+
+    @staticmethod
+    def _handler(posts: list[httpx.Request], status: int, code: str) -> Any:
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path == ATTESTATION_PATH:
+                posts.append(request)
+                return httpx.Response(
+                    status, json={"success": False, "error": {"code": code, "message": "no"}}
+                )
+            payload = _signed_digest_payload(DIGEST_ENV)
+            payload["epoch_id"] = request.url.params.get("epoch")
+            return _ok(payload)
+
+        return handler
+
+    def test_a_4xx_rejection_is_not_retried_on_later_sweeps(self, tmp_path: Path) -> None:
+        """The platform rejects a bad signature or an unregistered hotkey with
+        a 4xx. That answer will not change, so re-POSTing it every cycle would
+        hammer an endpoint that has already decided."""
+        posts: list[httpx.Request] = []
+        attestor = self._attestor(tmp_path, self._handler(posts, 403, "FORBIDDEN"))
+
+        with _store_with_fixture_day(tmp_path / "e.sqlite") as store:
+            first = attestor.attest_pending(store=store, today="2026-07-15")
+            second = attestor.attest_pending(store=store, today="2026-07-15")
+            third = attestor.attest_pending(store=store, today="2026-07-15")
+
+        assert [o.status for o in first] == ["rejected"]
+        assert second == [] and third == [], "a permanent rejection must not be re-sent"
+        assert len(posts) == 1, f"expected one POST, got {len(posts)}"
+        # And it stays visible: the operator has to fix a signature or a
+        # registration, so it is reported rather than silently dropped.
+        assert "rejected" in summarize(first)["counts"]
+        assert summarize(first)["problems"][0]["status"] == "rejected"
+
+    def test_a_5xx_failure_is_still_retried(self, tmp_path: Path) -> None:
+        """Transient failure keeps its retry; only permanence stops it."""
+        posts: list[httpx.Request] = []
+        attestor = self._attestor(tmp_path, self._handler(posts, 500, "INTERNAL"))
+
+        with _store_with_fixture_day(tmp_path / "e.sqlite") as store:
+            first = attestor.attest_pending(store=store, today="2026-07-15")
+            second = attestor.attest_pending(store=store, today="2026-07-15")
+
+        assert [o.status for o in first] == ["signed"]
+        assert [o.status for o in second] == ["signed"], "a 5xx must stay retryable"
+        assert len(posts) == 2
+
+    def test_429_is_transient_not_a_rejection(self, tmp_path: Path) -> None:
+        """429 is the one 4xx that means "later", not "no"."""
+        posts: list[httpx.Request] = []
+        attestor = self._attestor(tmp_path, self._handler(posts, 429, "RATE_LIMITED"))
+
+        with _store_with_fixture_day(tmp_path / "e.sqlite") as store:
+            outcomes = attestor.attest_pending(store=store, today="2026-07-15")
+
+        assert [o.status for o in outcomes] == ["signed"]
+        assert read_undelivered(tmp_path / "state"), "must stay queued for redelivery"
