@@ -9,8 +9,11 @@ mechanism engine need:
 - ``[wallet]``     — wallet directory and hotkey names.
 - ``[platform]``   — base_url, platform_instance_id, API token env var,
                      trusted snapshot keys (one entry per ``platform_key_id``).
-- ``[validator]``  — snapshot mode, activity date, submit flag, dry run.
-- ``[scheduler]``  — refresh intervals.
+- ``[validator]``  — weight source (events / snapshot fallback), event
+                     store path, snapshot mode + activity date (fallback
+                     only), submit flag, dry run.
+- ``[scheduler]``  — refresh intervals (the snapshot one is fallback-only;
+                     the event path rescores every cycle).
 - ``[logging]``    — log level.
 
 The locked Phase 1 mechanism constants live in
@@ -112,7 +115,14 @@ class ValidatorRuntimeConfig(BaseModel):
 
 
 class SchedulerConfig(BaseModel):
-    """The ``[scheduler]`` section."""
+    """The ``[scheduler]`` section.
+
+    ``snapshot_refresh_interval_minutes`` applies to the **snapshot
+    fallback only**. The live event path has nothing to refresh on an
+    interval: the rolling window ends at "now", so it differs on every
+    tick and each cycle recomputes from the local store by construction.
+    Caching a scored window would mean submitting a stale one.
+    """
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", frozen=True)
 
@@ -149,11 +159,18 @@ class Phase1ConfigSection(BaseModel):
 
 
 class BurnConfigSection(BaseModel):
-    """The ``[burn]`` section — placeholders only.
+    """The ``[burn]`` section — inert placeholders. **Nothing reads these.**
 
-    Live values come from the signed snapshot at submission time
-    (consolidated specification §16.3). These local values are kept
-    for dry-run sanity checking against operator expectations.
+    No code path consumes this section: the live values are resolved at
+    submission time from chain (the burn target) and from the locked
+    :data:`~prometheon.mechanisms.phase1_growth.policy.MANUAL_BURN_RATE_PPM`
+    constant, or on the snapshot fallback from the signed snapshot header
+    (consolidated specification §16.3).
+
+    It is retained only so an existing operator TOML still parses. Editing
+    it changes nothing — which is the point: a burn target an operator
+    could set per-validator would let two validators route emissions
+    differently with nothing to reveal the divergence.
     """
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", frozen=True)
