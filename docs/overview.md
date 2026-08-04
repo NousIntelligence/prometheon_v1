@@ -2,7 +2,7 @@
 
 Prometheon Phase 1 is a Bittensor subnet that converts BitFan platform-qualified user activity into deterministic on-chain weights.
 
-The subnet's rewarded work is **real growth of a BitFan Fan Group**, not subnet-side inference or scoring. A Fan Group is a community surface on the BitFan platform that any signed-in user can create and lead — owning one is independent of, and a prerequisite for, becoming a miner. A miner is simply a Fan Group leader who has additionally registered a Bittensor hotkey and verified it against their platform account. Validators consume a daily platform-signed snapshot, run a pure integer weight engine against the current Bittensor metagraph, and submit weights to the chain.
+The subnet's rewarded work is **real growth of a BitFan Fan Group**, not subnet-side inference or scoring. A Fan Group is a community surface on the BitFan platform that any signed-in user can create and lead — owning one is independent of, and a prerequisite for, becoming a miner. A miner is simply a Fan Group leader who has additionally registered a Bittensor hotkey and verified it against their platform account. Validators consume the platform's signed event streams, recompute user scores independently from the frozen formula, run a pure integer weight engine against the current Bittensor metagraph, and submit weights to the chain.
 
 This document describes the architecture at a high level. For role-specific operational guides see [`miner.md`](./miner.md) and [`validator.md`](./validator.md).
 
@@ -49,8 +49,8 @@ No scaffolding for future phases lives in this tree. When a future phase ships i
 Every component has a clear responsibility:
 
 - **Miners** are Fan Group leaders who have verified a registered hotkey; they grow their Fan Group and do not run a daemon that submits work to validators. Fan Group ownership comes first; `verify-miner` layers mining status on top.
-- **The BitFan platform** is the sole authority on user activity scoring, anti-farming detection, and snapshot signing.
-- **Validators** transform a signed snapshot into an on-chain weight vector — deterministically, with no subjective scoring.
+- **The BitFan platform** is the sole authority on what *happened* — it records activity and issues anti-fraud verdicts — and it signs every record it emits. It is no longer the authority on the resulting scores: validators recompute those.
+- **Validators** recompute scores from their own copy of the signed streams and transform the result into an on-chain weight vector — deterministically, with no subjective scoring.
 - **The Bittensor chain** processes the submitted weights through Yuma consensus and emits.
 
 ### Subnet-side preconditions
@@ -83,8 +83,8 @@ The pure engine is the heart of the subnet. Everything else exists to feed it ve
 
 For one cycle:
 
-1. **Platform signed snapshot** — validator fetches the latest aggregate snapshot (or detailed manifest + pages) via the BitFan API. The request itself is signed with the validator hotkey under `PROMETHEON_API_REQUEST_V1`.
-2. **Signature + hash verification** — validator checks the Ed25519 platform signature against its trusted-key map, recomputes `records_hash` (and per-page hashes in detailed mode), enforces every cross-environment and policy-constant invariant.
+1. **Recompute from the local event store** — the validator scores the rolling window `[now − 14 days, now]` from records the platform pushed to it, which it verified and stored itself. No fetch happens in the weight path. *(The snapshot fallback replaces this step with an authenticated fetch plus signature and hash verification — see [`validator.md`](./validator.md#weight-source).)*
+2. **Burn policy** — the burn target is the subnet owner hotkey read from chain; the rate is a locked constant. Neither comes from the platform.
 3. **Metagraph sync** — fresh `MetagraphView` pulled from the chain.
 4. **Engine** — `compute_phase1_weight_plan` produces a `WeightPlan` with either `status="ready"` or `status="no_valid_weight_target"`.
 5. **Pre-submission gate** — commit-reveal detection (fail closed if enabled), SDK `mechid` support check, `weights_version` policy check.
@@ -93,7 +93,7 @@ For one cycle:
 8. **Submit** — `set_weights(version_key, mechid=0)` via the chain adapter.
 9. **Persist** — atomic state file + NDJSON event line.
 
-Given the same signed snapshot, the same metagraph state, and the same configuration, every compliant validator produces the same weight vector. This is by design.
+Given the same stored records, the same metagraph state, and the same configuration, every compliant validator produces the same weight vector. Validators whose stores differ will differ — expected during catch-up, and resolved by chain consensus rather than by refusing to submit.
 
 ---
 

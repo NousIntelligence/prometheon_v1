@@ -17,6 +17,7 @@ Loop control:
 
 from __future__ import annotations
 
+import tempfile
 import time
 from pathlib import Path
 
@@ -28,10 +29,13 @@ from prometheon.chain.subtensor import (
 from prometheon.chain.subtensor import (
     detect_capabilities,
     read_hyperparameters,
+    read_subnet_owner_hotkey,
     submit_set_weights,
     sync_metagraph_view,
 )
+from prometheon.chain.uids import resolve_plan_targets
 from prometheon.chain.wallet import get_hotkey_keypair, load_wallet
+from prometheon.chain.weights import to_u16_chain_vector
 from prometheon.cli._common import echo_info, echo_success, read_api_token_or_exit
 from prometheon.cli.renderer import render_error
 from prometheon.identity.errors import IdentityError
@@ -39,7 +43,11 @@ from prometheon.identity.roles import Role
 from prometheon.platform.client import BitFanClient
 from prometheon.platform.errors import PlatformError
 from prometheon.security.signatures import SignatureError
-from prometheon.validator.config import ValidatorConfig, load_validator_config
+from prometheon.validator.config import (
+    ValidatorConfig,
+    WeightSource,
+    load_validator_config,
+)
 from prometheon.validator.runner import ValidatorRunner
 
 
@@ -60,6 +68,9 @@ class _SubtensorAdapter:
 
     def read_hyperparameters(self, netuid: int) -> object:
         return read_hyperparameters(self._subtensor, netuid=netuid)
+
+    def read_subnet_owner_hotkey(self, netuid: int) -> str:
+        return read_subnet_owner_hotkey(self._subtensor, netuid=netuid)
 
     def submit_set_weights(
         self,
@@ -154,6 +165,88 @@ def run(
         )
         _run_loop(runner, config=config, once=once, cycles=cycles, verbose=verbose)
     echo_success("validator runner exited cleanly")
+
+
+@validator.command(name="compare-weights")
+@click.option(
+    "--config",
+    "config_path",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Validator TOML config.",
+)
+def compare_weights(config_path: Path) -> None:
+    """Run both weight paths on one cycle and diff the u16 vectors.
+
+    Record-level parity (``ingest score --snapshot-json``) compares miner
+    records. This is the runner-level equivalent, and it is the one that
+    proves a flip is safe: it compares what would actually be submitted,
+    after eligibility, ranking, largest-remainder allocation and UID
+    resolution — steps where two identical record sets can still diverge
+    (a UID that moved, a tie broken differently, a burn slice that
+    differs because the two paths source burn differently).
+
+    Submits nothing. Exit 3 means the vectors differ.
+    """
+    config = load_validator_config(config_path)
+    api_token = read_api_token_or_exit(env_var=config.platform.api_token_env, explicit=None)
+    wallet = load_wallet(name=config.wallet.name, hotkey_name=config.wallet.hotkey)
+    keypair = get_hotkey_keypair(wallet)
+    subtensor = connect_subtensor(config.chain.network)
+    adapter = _SubtensorAdapter(subtensor, wallet)
+
+    # One metagraph for both paths: comparing against two different chain
+    # reads would attribute UID churn to the weight source.
+    metagraph = adapter.sync_metagraph(config.chain.netuid)
+
+    with BitFanClient(
+        base_url=config.platform.base_url,
+        api_token=api_token,
+        platform_instance_id=config.platform.platform_instance_id,
+        chain_network=config.chain.network,
+        netuid=config.chain.netuid,
+        validator_keypair=keypair,
+        role=Role.VALIDATOR,
+        timeout_seconds=config.platform.request_timeout_seconds,
+    ) as platform_client:
+        vectors: dict[str, dict[int, int]] = {}
+        for source in (WeightSource.EVENTS, WeightSource.SNAPSHOT):
+            probe = ValidatorRunner(
+                config=config.model_copy(
+                    update={
+                        "validator": config.validator.model_copy(
+                            update={"weight_source": source, "dry_run": True}
+                        )
+                    }
+                ),
+                platform_client=platform_client,
+                subtensor=adapter,  # type: ignore[arg-type]
+                wallet_hotkey=keypair,
+                capabilities=detect_capabilities(),
+                state_directory=Path(tempfile.mkdtemp(prefix="prometheon-compare-")),
+            )
+            plan = probe.build_plan(metagraph=metagraph)  # type: ignore[arg-type]
+            targets = resolve_plan_targets(plan, metagraph=metagraph)  # type: ignore[arg-type]
+            vector = to_u16_chain_vector(targets)
+            vectors[source.value] = dict(zip(vector.uids, vector.weights, strict=True))
+            echo_info(
+                f"{source.value}: {len(vector.uids)} targets "
+                f"(plan {plan.status}, id {plan.snapshot_id})"
+            )
+
+    events = vectors["events"]
+    snapshot = vectors["snapshot"]
+    if events == snapshot:
+        echo_success(f"weight vectors identical across both paths ({len(events)} UIDs)")
+        return
+
+    click.echo("VECTOR MISMATCH between weight sources", err=True)
+    for uid in sorted(set(events) | set(snapshot)):
+        ours = events.get(uid)
+        theirs = snapshot.get(uid)
+        if ours != theirs:
+            click.echo(f"  uid {uid}: events={ours} snapshot={theirs}", err=True)
+    raise click.exceptions.Exit(3)
 
 
 def _run_loop(

@@ -5,11 +5,15 @@ declared here as ``Final`` module constants so the engine and its tests
 share one source of truth. ``Phase1Policy`` packages them together with
 the snapshot-controlled burn fields so the engine signature stays small.
 
-For live validation, callers build a :class:`Phase1Policy` from the
-**signed snapshot** values for ``burn_hotkey`` and
-``manual_burn_rate_ppm``. The other policy fields are pinned to the
-Phase 1 constants and a snapshot deviating from them would already have
-been rejected at parse time by the schema models.
+On the live event path, ``burn_hotkey`` is the **subnet owner hotkey read
+from chain** and ``manual_burn_rate_ppm`` is the locked
+:data:`MANUAL_BURN_RATE_PPM` constant below — neither is operator config,
+and both are identical for every validator by construction. On the
+snapshot fallback both still come from the signed snapshot header.
+
+The other policy fields are pinned to the Phase 1 constants; a snapshot
+deviating from them would already have been rejected at parse time by the
+schema models.
 """
 
 from __future__ import annotations
@@ -51,15 +55,18 @@ _SS58_LOOSE_RE: Final[str] = r"^[1-9A-HJ-NP-Za-km-z]{46,48}$"
 
 
 class Phase1Policy(BaseModel):
-    """Engine input: locked Phase 1 constants plus signed-snapshot burn fields.
+    """Engine input: locked Phase 1 constants plus the burn fields.
 
     The Phase 1 constants (``daily_score_cap``,
     ``active_member_score_threshold``, ``min_active_members_for_reward``,
     ``top_k``, ``weight_units``) are exposed as ``Literal`` defaults so a
-    caller cannot accidentally pass a wrong value. ``burn_hotkey`` and
-    ``manual_burn_rate_ppm`` come from the signed snapshot's policy
-    section (consolidated specification §16.3); they are the only fields
-    a validator does not pin locally.
+    caller cannot accidentally pass a wrong value.
+
+    ``burn_hotkey`` and ``manual_burn_rate_ppm`` are the only two fields a
+    caller supplies. On the live event path they come from chain (the
+    subnet owner hotkey) and from :data:`MANUAL_BURN_RATE_PPM`; on the
+    snapshot fallback, from the signed snapshot's policy section
+    (consolidated specification §16.3). Neither is ever operator config.
     """
 
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid", frozen=True)
