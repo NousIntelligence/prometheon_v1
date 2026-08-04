@@ -1,5 +1,10 @@
-"""Phase 1 weight engine — pure deterministic transformation from a verified
-signed snapshot to a ``WeightPlan``.
+"""Phase 1 weight engine — pure deterministic transformation from a set of
+miner records to a ``WeightPlan``.
+
+The records come from the validator's own recomputation over the signed
+event stream (the live path) or from a verified signed snapshot (the
+retained fallback); the engine is identical either way and does not know
+which produced them.
 
 This sub-package is the core of the subnet's economic logic. Its contract is
 strict:

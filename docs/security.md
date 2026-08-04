@@ -144,6 +144,12 @@ PROMETHEON_SNAPSHOT_V1
 PROMETHEON_RECORD_SET_V1
 PROMETHEON_RECORD_PAGE_V1
 PROMETHEON_WEIGHT_PLAN_V1
+
+# Event stream (Decentralized Validation)
+PROMETHEON_INGEST_PUSH_V1
+PROMETHEON_EVENT_RECORD_V1
+PROMETHEON_EVENT_V1
+PROMETHEON_DAY_DIGEST_V1
 ```
 
 Cross-domain reuse is rejected by both sides. The platform's `signature.domain_mismatch` payload includes `details.expected_domain` so the operator can see which domain the platform expected for the endpoint that was called.
@@ -243,11 +249,11 @@ A stderr warning is emitted the first time a previously-unseen key is dropped (p
 | Replay | Nonce + timestamp + `chain_network` + `platform_instance_id` in every signed object. |
 | Wrong-environment replay | `chain_network` + `platform_instance_id` mismatch rejects before any crypto. |
 | Stale UID hijack | UIDs re-resolved against the current metagraph immediately before submission. |
-| Burn-target hijack | Burn target configured as `burn_hotkey`; missing-hotkey cases fall through to B/D. |
+| Burn-target hijack | Burn target is the subnet owner hotkey read from chain (or, on the snapshot fallback, the signed snapshot's value) — never operator config; missing-hotkey cases fall through to B/D. |
 | API token theft | Snapshot endpoints require both the token AND a fresh hotkey signature; the token alone is insufficient. |
 | Hotkey theft | Platform-state mutation requires the API token AND the hotkey signature AND a valid nonce; the hotkey alone is insufficient. |
 | Snapshot tampering | Ed25519 signature + `records_hash` + (detailed) per-page hashes. Any byte change invalidates the chain. |
-| Cross-protocol reuse | Eight distinct signing domains, double-bound (external prefix + embedded field). |
+| Cross-protocol reuse | Twelve distinct signing domains, double-bound (external prefix + embedded field). |
 | Floating-point divergence | All in-engine arithmetic is integer-only; chain-boundary u16 conversion is also integer largest-remainder. |
 | Commit-reveal silent fallback | Detection at startup; fail closed if commit-reveal is enabled on the chain. |
 | Missing `mechid` silent fallback | Detection at startup; fail closed outside `local` development. |

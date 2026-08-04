@@ -1,29 +1,48 @@
 """Validator runtime orchestrator.
 
-Composes the security primitives, identity verifier, platform client,
-snapshot signature verifier, mechanism engine, chain adapter, and local
-state into a single end-to-end cycle.
+Composes the event-stream scorer, mechanism engine, chain adapter and
+local state into a single end-to-end cycle.
 
 A full cycle is:
 
-1. Refresh the platform snapshot (aggregate single response or detailed
-   manifest + streamed pages).
-2. Verify the Ed25519 platform signature and every records / page hash.
-3. Sync the metagraph fresh from the chain.
-4. Build the engine inputs: normalised miner records,
-   :class:`MetagraphView`, :class:`Phase1Policy` (with burn values from
-   the signed snapshot).
-5. Run :func:`compute_phase1_weight_plan`.
-6. For ready plans: run the pre-submission policy gate, re-resolve UIDs,
+1. Sync the metagraph fresh from the chain.
+2. Source this cycle's miner records (:meth:`ValidatorRunner.build_plan`):
+
+   - ``weight_source = "events"`` (**the live path, default**) —
+     recompute from the validator's own event store over the rolling
+     window ``[now - 14 days, now]``, whose last bucket is the
+     in-progress day. Rankings therefore move with activity rather than
+     stepping once a day, and every cycle rescores.
+   - ``weight_source = "snapshot"`` — the pull-based predecessor,
+     retained as an incident fallback: fetch, verify the Ed25519
+     signature and every records / page hash, and use the result.
+
+3. Resolve the burn policy. On the event path the target is the subnet
+   owner hotkey read from chain and the rate is the locked Phase 1
+   constant; on the fallback both come from the signed snapshot header.
+4. Run :func:`compute_phase1_weight_plan`.
+5. For ready plans: run the pre-submission policy gate, re-resolve UIDs,
    convert to u16, submit via the chain adapter.
-7. Persist updated :class:`ValidatorState` and append an NDJSON event.
+6. Persist updated :class:`ValidatorState` and append an NDJSON event.
+
+Two properties of the live path worth stating explicitly, because both
+are deliberate:
+
+- **No completeness gate.** The validator scores whatever its own store
+  holds and submits. Two validators whose stores differ will submit
+  different vectors, and chain consensus resolves that. Refusing to
+  submit in order to protect a determinism property would cost dividends
+  and eventually the registration — a worse failure than a temporarily
+  divergent vector. Day digests and ``ingest check-day`` are operator
+  diagnostics, never a precondition here.
+- **The store is opened read-only.** The ingest service is its only
+  writer; the weight path must never become a second one.
 
 The runner is structured as a class so tests can inject:
 
-- A fake :class:`prometheon.platform.client.BitFanClient`
-- A fake subtensor object (with ``metagraph``, ``set_weights`` etc.)
+- A fake :class:`prometheon.platform.client.BitFanClient` (fallback only)
+- A fake subtensor object satisfying :class:`SubtensorProtocol`
 - A fake :class:`prometheon.chain.weights.WeightSubmissionStrategy`
-- A custom clock
 
 All external dependencies pass through the constructor or the
 :meth:`run_once` arguments.
@@ -228,11 +247,35 @@ class ValidatorRunner:
     # Cycle steps
     # -----------------------------------------------------------------
 
-    def _run_cycle(self) -> CycleResult:
+    def build_plan(self, *, metagraph: MetagraphView) -> WeightPlan:
+        """Produce this cycle's weight plan without touching the chain.
+
+        The plan-building half of a cycle — source the miner records,
+        resolve the burn policy, run the engine — split out so the A/B
+        harness can compare the two weight sources through the *same*
+        code the runner submits from. A harness that re-implemented this
+        would prove only that the copy agrees with itself.
+
+        Takes the metagraph as an argument rather than syncing its own, so
+        a caller comparing two sources holds one chain read across both
+        and cannot attribute UID churn to the weight source.
+        """
         if self._config.validator.weight_source is WeightSource.EVENTS:
             records, snapshot_id, activity_date = self._score_event_stream()
         else:
             records, snapshot_id, activity_date = self._fetch_and_verify_snapshot()
+        return compute_phase1_weight_plan(
+            records,
+            metagraph=metagraph,
+            policy=self._burn_policy(),
+            chain_network=ChainNetwork(self._config.chain.network),
+            platform_instance_id=self._config.platform.platform_instance_id,
+            netuid=self._config.chain.netuid,
+            snapshot_id=snapshot_id,
+            activity_date=activity_date,
+        )
+
+    def _run_cycle(self) -> CycleResult:
         metagraph = self._subtensor.sync_metagraph(self._config.chain.netuid)
         hyperparams = self._subtensor.read_hyperparameters(self._config.chain.netuid)
 
@@ -245,17 +288,8 @@ class ValidatorRunner:
             allow_legacy_sdk_without_mechid=self._config.chain.allow_legacy_sdk_without_mechid,
         )
 
-        policy = self._burn_policy()
-        plan = compute_phase1_weight_plan(
-            records,
-            metagraph=metagraph,
-            policy=policy,
-            chain_network=ChainNetwork(self._config.chain.network),
-            platform_instance_id=self._config.platform.platform_instance_id,
-            netuid=self._config.chain.netuid,
-            snapshot_id=snapshot_id,
-            activity_date=activity_date,
-        )
+        plan = self.build_plan(metagraph=metagraph)
+        snapshot_id = plan.snapshot_id
 
         if plan.status != "ready":
             report_event(

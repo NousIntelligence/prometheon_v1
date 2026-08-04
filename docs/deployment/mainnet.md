@@ -9,7 +9,8 @@ This guide is the operational checklist; the underlying mechanism is described i
 ## Prerequisites
 
 - A Bittensor wallet registered on the Prometheon mainnet netuid, with a chain-issued validator permit.
-- A validator API token issued by the **production** BitFan platform.
+- A validator API token issued by the **production** BitFan platform, carrying `ingest:register` and `events:read` (the live weight path) — plus `snapshot:read:*` if you intend to keep the fallback usable.
+- **A running, registered ingest endpoint.** The live weight source is the local event store; without it the runner cannot produce weights. Follow [`decentralized-validation.md`](../decentralized-validation.md) before the first `validator run`, and make `[validator] events_db` match the path given to `ingest serve --db`.
 - The production platform's current Ed25519 signing public key(s) + `platform_key_id`(s).
 - The operator-provided `version_key`.
 

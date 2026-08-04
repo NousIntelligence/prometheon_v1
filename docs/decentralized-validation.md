@@ -42,6 +42,25 @@ every layer described below is verified against it in CI.
 
 ---
 
+## This is a prerequisite for setting weights
+
+The validator runtime's live weight source **is** this store
+(`weight_source = "events"`, the default). Every cycle it opens the store
+**read-only** and rescores the rolling window; the ingest service is the
+only writer. Two consequences worth getting right before you start:
+
+- `[validator] events_db` in your config must be the **same path** you pass
+  to `ingest serve --db`. They are not linked automatically.
+- Without a store, the runner cannot produce weights at all: the cycle
+  fails with `validator.event_weight_source` **before any chain call**, so
+  nothing is submitted from partial inputs.
+
+Completeness is *not* checked before submission — the validator submits
+what it has and chain consensus resolves any divergence. `check-day` below
+tells you whether you are complete; it never gates the runner.
+
+---
+
 ## Setting up the ingest endpoint
 
 The platform pushes to a **public HTTPS URL** you operate. The service itself
@@ -200,19 +219,25 @@ uv run prometheon ingest score \
     --date 2026-07-14
 ```
 
-Rules the pipeline enforces:
+This is the **sealed-day** mode, used for parity reports and audits — not
+what the validator runtime does. The runtime scores the live rolling window
+`[now − 14 days, now]` every cycle, including the in-progress day; see
+[`validator.md`](./validator.md#weight-source).
+
+Rules the sealed-day path enforces:
 
 - **The cutoff**: epoch `D` is scored only after `verdicts_complete(D)` has
   arrived (sealed by the platform at ~00:05 UTC on D+1). If the marker is
   more than ~2 hours late, `--allow-missing-marker` scores with full default
   weights and prints an alarm — the missing marker is publicly visible and
-  identical for every validator, and it self-heals next epoch.
+  identical for every validator, and it self-heals next epoch. The live path
+  does not wait for the marker: the current day cannot have one.
 - **Alarms to stderr, records to stdout**: verdict-count mismatches and
   signature-injection evidence are printed as `ALARM:` lines; the JSON miner
   records go to stdout for scripting.
 
-During the **shadow phase**, validators keep submitting snapshot-derived
-weights while comparing the recomputation daily:
+During the **shadow phase**, compare the two derivations daily. At the
+record level:
 
 ```bash
 uv run prometheon ingest score --db … --date … \
@@ -220,6 +245,20 @@ uv run prometheon ingest score --db … --date … \
 ```
 
 exits `0` on parity and `3` on mismatch, printing per-miner evidence.
+
+At the **vector** level — what would actually be submitted, after eligibility,
+ranking, allocation and UID resolution:
+
+```bash
+uv run prometheon validator compare-weights --config ~/prometheon-validator.toml
+```
+
+It builds a plan from **both** weight sources against one shared metagraph
+read and diffs the resulting u16 vectors, submitting nothing. Exit `3` means
+the two paths would submit different weights. This is the comparison that
+actually proves a flip is safe: two identical record sets can still produce
+different vectors if a UID moved, a tie broke differently, or the burn slice
+differs between the sources.
 
 For the per-user layer, add `--parity-report`:
 

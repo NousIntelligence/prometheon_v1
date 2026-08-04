@@ -12,26 +12,26 @@ Prometheon does not score miner-submitted model output. Instead, the rewarded wo
 
 1. **A BitFan user creates and leads a Fan Group** and brings users into it. Leading a Fan Group requires only a platform account — not miner status.
 2. **That Fan Group leader becomes a miner** by registering a Bittensor hotkey and running `verify-miner`, which requires they already lead a Fan Group and binds the hotkey to their account.
-3. **BitFan** scores user activity over a rolling 14-day window with a daily score cap, produces a daily signed snapshot, and exposes it through an authenticated API.
-4. **Validators** download the snapshot, verify its platform signature and integrity, run a pure deterministic integer weight engine against the current metagraph, and submit one weight vector to Bittensor.
+3. **BitFan** records every reward-relevant user action into four gap-free, publisher-signed event streams and pushes them to every registered validator.
+4. **Validators** keep their own copy of those streams, **recompute** scores from the frozen open formula over a rolling 14-day window ending at the present moment, run a pure deterministic integer weight engine against the current metagraph, and submit one weight vector to Bittensor.
 
 The full data flow is:
 
 ```text
 Platform-authenticated identity
-+ Platform-signed daily activity snapshot
-+ Validator-side deterministic integer transformation
++ Platform-signed gap-free event streams (pushed to every validator)
++ Validator-side independent recomputation + deterministic integer transformation
 + Metagraph hotkey-to-UID resolution
 + Bittensor weight submission
 ```
 
-Given the same signed snapshot, the same metagraph state, and the same configuration, every compliant validator produces the same weight vector. This is by design.
+Given the same stored records, the same metagraph state, and the same configuration, every compliant validator produces the same weight vector. Because each validator recomputes from records it holds itself, the platform cannot quietly change a number: doing so would require forging signatures held by many independent parties, or leaving a detectable gap in a monotonic sequence.
 
 ---
 
 ## High-Level Mechanism
 
-For each daily snapshot the validator:
+On each cycle the validator:
 
 1. Drops miners not currently registered in the metagraph.
 2. Drops miners with fewer than 3 active members (a member is active when their 14-day score is strictly greater than 50).

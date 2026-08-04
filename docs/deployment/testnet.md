@@ -47,6 +47,9 @@ not_after  = "2026-11-22T00:00:00Z"
 status     = "active"
 
 [burn]
+# INERT — nothing reads this section. The live burn target is the subnet
+# owner hotkey read from chain (which is this same value on 481) and the
+# rate is a locked constant. Retained only so an existing TOML parses.
 enabled = true
 burn_hotkey = "5GTCFZ5YNUNUF5XdoFP4gnFMrEud3ddmvu8HGEMHf97npHfZ"
 manual_burn_rate_ppm = 150000
@@ -66,6 +69,35 @@ uv run prometheon verify-validator \
     --chain-network test \
     --netuid 481
 ```
+
+---
+
+## Run the ingest service first
+
+The live weight path (`weight_source = "events"`, the default) scores from
+a local event store that the platform pushes into. **Without it the runner
+cannot produce weights at all** — the first cycle fails with
+`validator.event_weight_source` before any chain call.
+
+So before `validator run`, stand up the ingest endpoint and register it:
+
+```bash
+uv run prometheon ingest serve \
+    --config ~/prometheon-testnet.toml \
+    --db .validator-state/events.sqlite \
+    --host 127.0.0.1 --port 8541
+
+uv run prometheon ingest register-endpoint \
+    --ingest-url https://ingest.<your-domain>/ \
+    --config ~/prometheon-testnet.toml
+```
+
+Full setup — TLS reverse proxy, registration, catch-up, completeness
+checks — is in the [Decentralized Validation guide](../decentralized-validation.md).
+`events_db` in your config must be the same path you pass to `ingest serve`.
+
+*(To run without the event stream, set `weight_source = "snapshot"`. That is
+the retained incident fallback, not the supported steady state.)*
 
 ---
 

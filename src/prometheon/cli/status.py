@@ -41,7 +41,22 @@ def status(state_directory: Path) -> None:
     click.echo(f"  netuid               : {persisted.netuid}")
     click.echo(f"  validator_hotkey     : {persisted.validator_hotkey}")
     click.echo(f"  mode                 : {persisted.mode}")
-    click.echo(f"  last_snapshot_id     : {persisted.last_accepted_snapshot_id}")
+    click.echo(f"  weight_source        : {persisted.weight_source}")
+
+    # Which inputs produced the submitted vector. The runner records these
+    # so this question is answerable without re-deriving anything; printing
+    # only the snapshot id would leave an event-path operator unable to
+    # tell which data their weights came from.
+    if persisted.weight_source == "events":
+        click.echo(f"  scored_epoch         : {persisted.last_scored_epoch}")
+        click.echo(f"  scores_hash          : {persisted.last_scores_hash}")
+        click.echo(f"  engine_version       : {persisted.last_engine_version}")
+        cursors = persisted.last_stream_cursors or {}
+        rendered = ", ".join(f"{family}={cursors[family]}" for family in sorted(cursors)) or "none"
+        click.echo(f"  stream_cursors       : {rendered}")
+    else:
+        click.echo(f"  last_snapshot_id     : {persisted.last_accepted_snapshot_id}")
+
     click.echo(f"  last_metagraph_block : {persisted.last_metagraph_block}")
     click.echo(f"  last_submit_status   : {persisted.last_submit_status}")
     click.echo(f"  last_extrinsic_hash  : {persisted.last_extrinsic_hash}")

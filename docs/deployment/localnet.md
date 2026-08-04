@@ -49,6 +49,12 @@ Register a hotkey on your local subnet via `btcli` against your local node.
 
 ## Run
 
+The default weight source is `events`, which needs a local event store. For
+a localnet loop you can either run `prometheon ingest serve` against your
+local platform, or set `weight_source = "snapshot"` in `[validator]` to
+exercise the fallback path without one. With neither, the first cycle fails
+with `validator.event_weight_source`.
+
 ```bash
 export PROMETHEON_VALIDATOR_API_TOKEN="<local_token>"
 uv run prometheon validator run --config ~/prometheon-local.toml --once

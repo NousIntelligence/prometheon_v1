@@ -31,6 +31,13 @@ not_after  = "2026-09-01T00:00:00Z"
 status     = "active"
 
 [validator]
+# Where this cycle's miner records come from.
+#   events   — recompute from the local event store (LIVE PATH, default).
+#              Rolling window [now-14d, now], rescored every cycle.
+#   snapshot — the pull-based predecessor, retained as an incident
+#              fallback only. Requires a snapshot:read:* token scope.
+weight_source = "events"
+events_db = ".validator-state/events.sqlite"
 mode = "aggregate"
 activity_date = "latest"
 submit_weights = true
@@ -51,6 +58,8 @@ burn_hotkey = "5DPLACEHOLDERburnHotkeyForMainnetXXXXXXXXXXXXXXXXXXXXXXXX"
 manual_burn_rate_ppm = 150000
 
 [scheduler]
+# snapshot_refresh_interval_minutes applies to the snapshot FALLBACK only.
+# The live event path rescores every cycle: its window ends at "now".
 snapshot_refresh_interval_minutes = 60
 metagraph_refresh_interval_minutes = 10
 weight_submission_check_interval_minutes = 15
