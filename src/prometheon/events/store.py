@@ -60,6 +60,15 @@ WINDOW_FAMILIES: Final[frozenset[EventFamily]] = frozenset(
     {EventFamily.ACTIVITY, EventFamily.EXCLUSION}
 )
 
+# Retention floor for window families. The scoring window spans 14 days and
+# the streak look-back reaches 7 further back, so 21 days are load-bearing;
+# 23 is the contract's figure and leaves two days of slack.
+RETENTION_EPOCHS: Final[int] = 23
+
+# Replay nonces are useless once older than the ±300 s replay window; a day
+# is generous and keeps the table trivially small.
+DEFAULT_NONCE_RETENTION_DAYS: Final[int] = 1
+
 _SCHEMA: Final[str] = """
 CREATE TABLE IF NOT EXISTS event_records (
     family          TEXT    NOT NULL,
@@ -90,6 +99,14 @@ CREATE TABLE IF NOT EXISTS ingest_nonces (
 
 class EventStoreError(RuntimeError):
     """A store invariant was violated (contiguity, dedup, family mismatch)."""
+
+
+@dataclass(frozen=True)
+class PrunableCounts:
+    """How much a retention pass would remove."""
+
+    records: int
+    nonces: int
 
 
 @dataclass(frozen=True)
@@ -273,6 +290,27 @@ class EventStore:
         )
         return [bytes(blob) for (blob,) in cursor]
 
+    def record_count_in_epochs(self, epochs: Sequence[str]) -> int:
+        """Records stored across ALL families for the given epochs.
+
+        The weight path uses this to tell "nobody qualified" from "nothing
+        arrived". The two look identical downstream — both produce an empty
+        miner list — but the first is a legitimate verdict and the second
+        is a local malfunction, and only one of them should reach the
+        chain.
+        """
+        if not epochs:
+            return 0
+        # The scoring window is a contiguous run of days and epoch_id is
+        # ISO-8601, so lexicographic BETWEEN is exactly equivalent to an
+        # IN over the same dates — with a fixed query string rather than
+        # one assembled at runtime.
+        row = self._connection.execute(
+            "SELECT COUNT(*) FROM event_records WHERE epoch_id BETWEEN ? AND ?",
+            (min(epochs), max(epochs)),
+        ).fetchone()
+        return int(row[0])
+
     def record_count_for_epoch(self, family: EventFamily, epoch_id: str) -> int:
         row = self._connection.execute(
             "SELECT COUNT(*) FROM event_records WHERE family = ? AND epoch_id = ?",
@@ -281,6 +319,27 @@ class EventStore:
         return int(row[0])
 
     # -- retention ------------------------------------------------------
+
+    def count_prunable(self, *, before_epoch: str, before_nonce: str) -> PrunableCounts:
+        """What :meth:`prune_window_families` + :meth:`prune_nonces` would delete.
+
+        Exists so an operator can see the size of a deletion before making
+        it, on a store whose contents feed live weights.
+        """
+        # One fixed query per window family rather than an IN-clause built
+        # at runtime: the same result, and the (family, epoch_id, seq)
+        # index can seek on each.
+        records = 0
+        for family in sorted(f.value for f in WINDOW_FAMILIES):
+            row = self._connection.execute(
+                "SELECT COUNT(*) FROM event_records WHERE family = ? AND epoch_id < ?",
+                (family, before_epoch),
+            ).fetchone()
+            records += int(row[0])
+        nonces = self._connection.execute(
+            "SELECT COUNT(*) FROM ingest_nonces WHERE seen_at < ?", (before_nonce,)
+        ).fetchone()
+        return PrunableCounts(records=records, nonces=int(nonces[0]))
 
     def prune_window_families(self, *, before_epoch: str) -> int:
         """Delete window-family records with ``epoch_id < before_epoch``.
@@ -341,10 +400,13 @@ def prepare_wire_records(
 
 
 __all__ = [
+    "DEFAULT_NONCE_RETENTION_DAYS",
+    "RETENTION_EPOCHS",
     "WINDOW_FAMILIES",
     "EventStore",
     "EventStoreError",
     "PreparedRecord",
+    "PrunableCounts",
     "load_record_mapping",
     "prepare_wire_records",
 ]

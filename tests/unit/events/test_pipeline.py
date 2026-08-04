@@ -379,3 +379,86 @@ class TestLiveRollingWindow:
         moment = datetime(2026, 8, 3, 23, 59, 59, tzinfo=timezone.utc)
         assert current_epoch(moment) == "2026-08-03"
         assert current_epoch() == datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
+class TestMissingMarkerReporting:
+    """Live mode suppresses TODAY's marker — not the rest of the window's.
+
+    The platform seals one marker per closed day. A closed day in the
+    window without one means the exclusion stream stalled, and with it
+    every anti-fraud verdict: scores drift silently to full weight. That
+    has to reach a surface.
+    """
+
+    def test_todays_absent_marker_is_not_reported(self, tmp_path: Path) -> None:
+        with EventStore(tmp_path / "e.sqlite") as store:
+            _populate(store, with_marker=False)
+            result = score_event_stream(store, scoring_date=SCORING_DATE, live=True)
+
+        assert result.marker_missing is False
+        assert SCORING_DATE not in result.missing_markers
+
+    def test_closed_days_without_markers_are_reported(self, tmp_path: Path) -> None:
+        with EventStore(tmp_path / "e.sqlite") as store:
+            _populate(store, with_marker=False)
+            result = score_event_stream(store, scoring_date=SCORING_DATE, live=True)
+
+        # The 13 closed days before the scored one all lack markers here.
+        window = window_epochs(SCORING_DATE)
+        assert set(result.missing_markers) == set(window[:-1])
+        assert len(result.missing_markers) == SCORING_WINDOW_DAYS - 1
+
+    def test_a_present_marker_clears_its_day(self, tmp_path: Path) -> None:
+        with EventStore(tmp_path / "e.sqlite") as store:
+            _populate(store)  # writes the marker for SCORING_DATE
+            result = score_event_stream(store, scoring_date=SCORING_DATE, live=True)
+
+        assert SCORING_DATE not in result.missing_markers
+
+    def test_sealed_mode_reports_the_scored_day_too(self, tmp_path: Path) -> None:
+        with EventStore(tmp_path / "e.sqlite") as store:
+            _populate(store, with_marker=False)
+            result = score_event_stream(store, scoring_date=SCORING_DATE, allow_missing_marker=True)
+
+        assert result.marker_missing is True
+        assert SCORING_DATE in result.missing_markers
+
+
+class TestMarkerGracePeriod:
+    """A marker is only "missing" once it is genuinely overdue.
+
+    Contract §6.4 seals epoch D at ~00:05 UTC on D+1 with a 2h grace. With
+    no grace this alarm fires at every midnight rollover — yesterday has
+    closed but has not been sealed yet — which is a guaranteed daily false
+    positive, and daily false positives are how real alarms get ignored.
+    """
+
+    def test_just_after_midnight_yesterday_is_not_yet_overdue(self, tmp_path: Path) -> None:
+        from datetime import datetime, timezone
+
+        with EventStore(tmp_path / "e.sqlite") as store:
+            _populate(store, with_marker=False)
+            result = score_event_stream(
+                store,
+                scoring_date=SCORING_DATE,
+                live=True,
+                now=datetime(2026, 7, 15, 0, 30, tzinfo=timezone.utc),
+            )
+
+        # 2026-07-14 closed 30 minutes ago; its seal is due 00:05 + 2h grace.
+        assert SCORING_DATE not in result.missing_markers
+
+    def test_past_the_grace_window_it_is_reported(self, tmp_path: Path) -> None:
+        from datetime import datetime, timezone
+
+        with EventStore(tmp_path / "e.sqlite") as store:
+            _populate(store, with_marker=False)
+            result = score_event_stream(
+                store,
+                scoring_date="2026-07-15",
+                live=True,
+                now=datetime(2026, 7, 15, 3, 0, tzinfo=timezone.utc),
+            )
+
+        # 2026-07-14's marker was due 00:05 and the 2h grace expired at 02:05.
+        assert SCORING_DATE in result.missing_markers
