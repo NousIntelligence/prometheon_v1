@@ -25,9 +25,18 @@ Both paths enter a 24-hour pending state before activation, and both start a 14-
 
 Use when you have both wallets locally.
 
+Every command on this page reads its token from **`PROMETHEON_API_TOKEN`** —
+not the `PROMETHEON_MINER_API_TOKEN` / `PROMETHEON_VALIDATOR_API_TOKEN` the
+verify commands use. Export it first, or pass `--api-token`:
+
 ```bash
-prometheon rotate-hotkey \
-    --role           miner             # or validator \
+export PROMETHEON_API_TOKEN="<operational token with the rotate/recover scope>"
+```
+
+```bash
+# --role takes miner or validator; rotate each separately.
+uv run prometheon rotate-hotkey \
+    --role           miner \
     --username       <bitfan_username> \
     --email          <bitfan_email> \
     --wallet-name    <coldkey_directory_name> \
@@ -59,7 +68,7 @@ and requiring its file would defeat the purpose of the command. Read the address
 off the metagraph, the BitFan portal, or your own records.
 
 ```bash
-prometheon recover-hotkey \
+uv run prometheon recover-hotkey \
     --recovery-method coldkey \
     --role           miner \
     --username       <user> --email <email> \
@@ -90,7 +99,7 @@ On acceptance the request enters a **24-hour pending period**. The new hotkey is
 Use when neither the old hotkey nor the coldkey is available.
 
 ```bash
-prometheon recover-hotkey \
+uv run prometheon recover-hotkey \
     --recovery-method manual_2fa_ops \
     --role           miner \
     --username       <user> --email <email> \

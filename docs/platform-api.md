@@ -56,7 +56,10 @@ The binding travels one of two ways, and exactly one of them applies per call:
 
 Endpoints in the header group today: the snapshot reads, the event read API
 (`GET /events/backfill`, `GET /events/digest`), and ingest-endpoint
-registration (`POST /identity/ingest-endpoint`, whose body is just the URL).
+registration (`POST /identity/ingest-endpoint`, whose body carries the ingest
+URL **and** `chain_network` + `platform_instance_id` — the contract requires the
+binding in the body on every `/identity/*` route, and the subnet client sends it
+in both places).
 The signed-request header set is a *separate*, additional requirement that only
 the snapshot API imposes — see below.
 

@@ -341,7 +341,23 @@ NO_VALID_WEIGHT_TARGET             Engine returned status=no_valid_weight_target
 chain.commit_reveal_enabled        Subnet has commit-reveal on; Phase 1 fails closed.
 chain.weights_version_mismatch     Chain weights_version differs from configured version_key.
 chain.mechid_missing               Installed SDK lacks mechid and legacy override is not allowed.
-chain.set_weights_failed           SDK-level submission error.
+chain.set_weights_failed           set_weights extrinsic rejected or reported
+                                   failure by the SDK.
+chain.subtensor_error              Any other subtensor-side failure: connect,
+                                   metagraph sync, hyperparameter read.
+chain.wallet_error                 Wallet or keypair could not be loaded.
+chain.weight_submission_error      Submission path failed outside the extrinsic
+                                   itself (e.g. UID resolution).
+validator.event_weight_source      Local event store missing or unreadable, so
+                                   the live path cannot score. Raised before any
+                                   weight submission.
+validator.config_error             Validator TOML rejected at load.
+validator.runner_error             Base code for other runner-side failures.
+identity.error                     Base code for identity-flow failures whose
+                                   subclass code is listed above.
+signature.error                    Signing or verification failed locally.
+record_invalid                     An event record failed shape validation on
+                                   ingest.
 ```
 
 ### Unrecognised codes
