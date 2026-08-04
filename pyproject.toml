@@ -33,7 +33,7 @@ classifiers = [
 ]
 
 authors = [
-    { name = "NousIntelligence" },
+    { name = "BitSpace" },
 ]
 
 # Runtime dependencies. Versions follow the binding pins documented in the
