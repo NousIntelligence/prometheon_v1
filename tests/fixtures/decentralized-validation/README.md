@@ -2,7 +2,7 @@
 
 This directory is the shared, byte-identical fixture suite that gates merges in **both**
 the BitFan platform repo (TypeScript, this repo) and the subnet validator repo
-(`NousIntelligence/prometheon_v1`, Python). Every JCS canonical artefact, hash, and
+(`BitSpaceorganization/prometheon_v1`, Python). Every JCS canonical artefact, hash, and
 signature here MUST round-trip across both implementations.
 
 Subdirectories:

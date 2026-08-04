@@ -21,7 +21,7 @@ This guide walks through the full validator setup, configuration, and operationa
 Install:
 
 ```bash
-git clone https://github.com/NousIntelligence/prometheon_v1
+git clone https://github.com/BitSpaceorganization/prometheon_v1
 cd prometheon_v1
 uv sync
 ```
@@ -259,7 +259,7 @@ For the full catalog (binding-ledger, snapshot storage, the five signature primi
 
 ### Subnet-owner resolution — disable commit-reveal
 
-This is the operational fix for `chain.commit_reveal_enabled` when **you hold the subnet-owner / sudo coldkey** for the affected netuid. Tracked in [#68](https://github.com/NousIntelligence/prometheon_v1/issues/68) as the chosen path for the live-incident response.
+This is the operational fix for `chain.commit_reveal_enabled` when **you hold the subnet-owner / sudo coldkey** for the affected netuid. Tracked in [#68](https://github.com/BitSpaceorganization/prometheon_v1/issues/68) as the chosen path for the live-incident response.
 
 Run this with the subnet-owner coldkey wallet on the right network (the example below targets testnet 481):
 
@@ -340,7 +340,7 @@ sudo install -d -m 0755 -o prometheon -g prometheon /var/lib/prometheon
 sudo install -d -m 0750 /etc/prometheon
 
 # 2. Deploy the code where the units expect it (/opt/prometheon/.venv/bin).
-sudo git clone https://github.com/NousIntelligence/prometheon_v1 /opt/prometheon
+sudo git clone https://github.com/BitSpaceorganization/prometheon_v1 /opt/prometheon
 sudo chown -R prometheon:prometheon /opt/prometheon
 sudo -u prometheon sh -c 'cd /opt/prometheon && uv sync --no-dev'
 

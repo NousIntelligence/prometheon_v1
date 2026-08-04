@@ -6,8 +6,8 @@ This document describes how to report vulnerabilities affecting the Prometheon P
 
 Please report security issues **privately** rather than through public GitHub issues:
 
-- Open a **GitHub Security Advisory** at https://github.com/NousIntelligence/prometheon_v1/security/advisories/new, or
-- Email the project maintainers at the contact address listed on the [NousIntelligence](https://github.com/NousIntelligence) profile.
+- Open a **GitHub Security Advisory** at https://github.com/BitSpaceorganization/prometheon_v1/security/advisories/new, or
+- Email the project maintainers at the contact address listed on the [BitSpaceorganization](https://github.com/BitSpaceorganization) profile.
 
 When reporting, please include:
 

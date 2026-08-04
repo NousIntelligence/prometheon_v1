@@ -14,7 +14,7 @@ Prometheon ships one phase per repository. This repository is Phase 1 only:
 
 | Phase | Repository | Status |
 |---|---|---|
-| Phase 1 — growth incentive | `NousIntelligence/prometheon_v1` | **Active** |
+| Phase 1 — growth incentive | `BitSpaceorganization/prometheon_v1` | **Active** |
 | Phase 2 | future repository | Reserved |
 | Phase 3 | future repository | Reserved |
 | Phase 4 | future repository | Reserved |
