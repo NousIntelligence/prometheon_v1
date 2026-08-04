@@ -214,6 +214,8 @@ The persisted `.validator-state/state.json` carries the last failure as a `(code
 
 #### Snapshot-side codes
 
+*(These occur only on the snapshot fallback — the live event path makes no snapshot call.)*
+
 | Wire code | Likely cause | Resolution |
 |---|---|---|
 | `SNAPSHOT_NOT_READY` | No snapshot has been published for the requested activity date yet. | Wait for the platform's publish cadence to complete for the day, or set `activity_date` in `[validator]` to a date already published. |
@@ -240,6 +242,7 @@ These are not platform errors; they are conditions the validator refuses to star
 
 | Code | Cause | Resolution |
 |---|---|---|
+| `validator.event_weight_source` | The local event store is missing or unreadable, so the live path cannot score. | Start `prometheon ingest serve` and confirm `events_db` in your config points at the same file. Raised **before any chain call**, so nothing is submitted from partial inputs. |
 | `chain.commit_reveal_enabled` | The subnet has commit-reveal turned on at the chain level. Phase 1 does not support commit-reveal. | If you do not own the subnet, wait until the subnet owner disables commit-reveal, or contact them. The validator refuses to submit until then. If you **do** own the subnet, see [Subnet-owner resolution](#subnet-owner-resolution-disable-commit-reveal) below. |
 | `chain.weights_version_mismatch` | The configured `[chain] version_key` differs from the chain's `weights_version` hyperparameter. | Update `version_key` in the config to the value the subnet owner has currently set. |
 | `chain.mechid_missing` | The installed `bittensor` SDK lacks `mechid` support and the config does not enable the legacy override. | Upgrade the `bittensor` package. The legacy override (`allow_legacy_sdk_without_mechid = true`) is only acceptable on `local`. |
@@ -299,6 +302,6 @@ scoring, parity reporting, and the shadow comparison.
 - **Snapshot key rotation**: the platform team will publish new `platform_key_id` entries before retiring an old one. Add the new entry to your `[platform.snapshot_keys]` config block before the platform starts signing with it. Multiple active keys may coexist.
 - **`weights_version`**: changes when the subnet owner bumps the on-chain weight version. The runtime detects a mismatch at startup and fails closed by default on `finney`.
 - **Commit-reveal**: not supported in Phase 1. If the subnet enables commit-reveal at the chain level the runner will fail closed (`chain.commit_reveal_enabled`).
-- **Activity cutoff**: respected by the scheduler. A cycle that arrives too close to the cutoff window will be skipped to avoid an out-of-bounds submission.
+- **No activity cutoff to respect.** The scored window ends at the present moment and is recomputed every cycle, so there is no boundary a cycle can arrive "too close" to. (The chain's own `activity_cutoff` hyperparameter is unrelated — it governs consensus, not scoring.)
 
 For deployment on each environment see the dedicated guides under [`deployment/`](./deployment/).

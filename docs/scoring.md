@@ -47,7 +47,7 @@ The contract that each user can join only one Fan Group is enforced platform-sid
 A miner is eligible for any allocation only if they meet **all** of the following:
 
 1. The miner's hotkey is currently registered in the chain metagraph.
-2. The miner's hotkey is not the configured `burn_hotkey`.
+2. The miner's hotkey is not the `burn_hotkey` (the subnet owner hotkey read from chain).
 3. The miner has **≥ 3 active members** (`MIN_ACTIVE_MEMBERS_FOR_REWARD = 3`).
 4. The miner has **positive** total score (`miner_score_points > 0`).
 
@@ -103,7 +103,7 @@ The final `set_weights` call carries `version_key` and `mechid=0`. Phase 1 uses 
 
 If every candidate fails eligibility, the burn target rules in [`burn-policy.md`](./burn-policy.md) take over:
 
-- If the configured burn hotkey is currently registered in the metagraph, 100% of the weight goes to the burn UID (Case C).
+- If the burn hotkey is currently registered in the metagraph, 100% of the weight goes to the burn UID (Case C).
 - If the burn hotkey is not registered either, the engine emits `status = "no_valid_weight_target"` and the runner **does not submit**. This is the fail-closed posture from consolidated specification §2.11 / §12.11 Case D.
 
 This is the only failure mode of the engine itself. Every other failure (a missing or unreadable event store, environment mismatch, chain hyperparameter mismatch) happens upstream and triggers a cycle-level error before the engine runs.

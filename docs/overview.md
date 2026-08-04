@@ -34,11 +34,12 @@ No scaffolding for future phases lives in this tree. When a future phase ships i
        │                                  │  scores user activity (14d)    │                              │
        │                                  ├──────────┐                     │                              │
        │                                  │          ▼                     │                              │
-       │                                  │  generates signed snapshot     │                              │
+       │                                  │  signs every event record      │                              │
        │                                  │          │                     │                              │
-       │                                  │ daily snapshot (Ed25519)       │                              │
+       │                                  │ pushes signed event streams    │                              │
        │                                  ├───────────────────────────────▶│                              │
-       │                                  │                                │  verifies signature, hash    │
+       │                                  │                                │  verifies + stores locally   │
+       │                                  │                                │  recomputes scores itself    │
        │                                  │                                │  runs pure Phase 1 engine    │
        │                                  │                                │  resolves UIDs, u16 convert  │
        │                                  │                                │  set_weights(version_key=N)  │

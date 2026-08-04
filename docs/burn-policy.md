@@ -22,7 +22,7 @@ The Phase 1 engine resolves which of four mutually exclusive cases applies on ev
 The case is determined by two questions:
 
 - Do any eligible miners exist after filtering and top-K selection?
-- Is the configured `burn_hotkey` currently registered in the chain metagraph?
+- Is the `burn_hotkey` (see the table above for where it comes from) currently registered in the chain metagraph?
 
 | Case | Winners exist | Burn hotkey in metagraph | Behavior |
 |---|---|---|---|

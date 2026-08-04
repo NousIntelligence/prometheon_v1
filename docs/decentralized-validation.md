@@ -42,6 +42,25 @@ every layer described below is verified against it in CI.
 
 ---
 
+## This is a prerequisite for setting weights
+
+The validator runtime's live weight source **is** this store
+(`weight_source = "events"`, the default). Every cycle it opens the store
+**read-only** and rescores the rolling window; the ingest service is the
+only writer. Two consequences worth getting right before you start:
+
+- `[validator] events_db` in your config must be the **same path** you pass
+  to `ingest serve --db`. They are not linked automatically.
+- Without a store, the runner cannot produce weights at all: the cycle
+  fails with `validator.event_weight_source` **before any chain call**, so
+  nothing is submitted from partial inputs.
+
+Completeness is *not* checked before submission — the validator submits
+what it has and chain consensus resolves any divergence. `check-day` below
+tells you whether you are complete; it never gates the runner.
+
+---
+
 ## Setting up the ingest endpoint
 
 The platform pushes to a **public HTTPS URL** you operate. The service itself
