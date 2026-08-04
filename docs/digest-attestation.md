@@ -184,4 +184,23 @@ has not sealed it yet — re-run after the seal deadline.
   transient failures, so the endpoint must be idempotent.
 
 Rejecting an attestation whose signature does not verify is the platform's
-choice; the subnet neither requires nor relies on it.
+choice; the subnet neither requires nor relies on it. The same applies to
+attestations from a hotkey that is not a registered validator.
+
+**Volume.** Four per validator per day — one per family — arriving shortly
+after the day's digests are sealed, so expect a burst rather than a trickle.
+
+**Transport.**
+
+- **No redirects.** The client does not follow them; a `301`/`302` is a
+  delivery failure, and the attestation is simply re-sent next cycle.
+- **Retries** happen only on `429`, `502`, `503`, `504`, at most 3 of them,
+  honouring `Retry-After` when present. Every other non-2xx is reported and
+  retried on a later sweep, not hammered.
+- **Timeout** is the validator's `request_timeout_seconds` (default 30 s).
+
+**Token scope is an open question for the platform.** Validators send their
+operational token, which today carries `ingest:register` and `events:read`.
+This route is a write, so if it is gated behind a new scope
+(`events:attest`, say), that scope has to be added to existing tokens or
+every submission returns 403.
