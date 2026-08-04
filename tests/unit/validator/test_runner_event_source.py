@@ -269,8 +269,8 @@ def event_config(tmp_path: Path) -> Any:
     )
 
 
-class TestEmptyWindowFailsClosed:
-    """An empty store must not become a full-burn vector.
+class TestAbsentInputFailsClosed:
+    """A store that never received anything must not become a full burn.
 
     With no records the engine produces no eligible miners, and the burn
     rules then route 100% of the weight pool to the burn UID — a real
@@ -279,30 +279,35 @@ class TestEmptyWindowFailsClosed:
     them before the plan is built.
     """
 
-    def test_present_but_empty_store_submits_nothing(
+    def test_store_that_never_received_anything_submits_nothing(
         self, tmp_path: Path, event_config: Any
     ) -> None:
         db = tmp_path / "events.sqlite"
-        EventStore(db).close()  # exists, schema created, zero records
+        EventStore(db).close()  # exists, schema created, all cursors 0
         subtensor = _FakeSubtensor()
 
-        with pytest.raises(EventWeightSourceError, match="no records for the scoring window"):
+        with pytest.raises(EventWeightSourceError, match="never received a record"):
             _runner(event_config, tmp_path, subtensor).run_once()
 
-        assert subtensor.submitted == [], "an empty window must never reach set_weights"
+        assert subtensor.submitted == [], "absent input must never reach set_weights"
 
-    def test_records_outside_the_window_do_not_count(
-        self, tmp_path: Path, event_config: Any
-    ) -> None:
-        """A long-down validator holding only stale data is equally empty."""
+    def test_a_stale_store_still_submits(self, tmp_path: Path, event_config: Any) -> None:
+        """Being behind is not the same as having no input.
+
+        A validator whose stream stopped 15 days ago has an empty window
+        but non-zero cursors: records demonstrably arrived. That is a store
+        that is behind, which must never gate submission — it submits its
+        stale vector and chain consensus clips it. Gating here would strand
+        the validator with nothing upstream to fetch.
+        """
         db = tmp_path / "events.sqlite"
         _seed_store(db, "2020-01-01")
         subtensor = _FakeSubtensor()
 
-        with pytest.raises(EventWeightSourceError, match="no records for the scoring window"):
-            _runner(event_config, tmp_path, subtensor).run_once()
+        result = _runner(event_config, tmp_path, subtensor).run_once()
 
-        assert subtensor.submitted == []
+        assert result.submitted is True
+        assert subtensor.submitted
 
     def test_records_in_the_window_still_score_normally(
         self, tmp_path: Path, event_config: Any
@@ -355,3 +360,26 @@ class TestQuietStreamStillSubmits:
         assert result.plan.status == "ready"
         assert result.plan.burn_case == "C"
         assert subtensor.submitted, "a quiet but live stream must still submit"
+
+
+class TestMarkerWarningIsNotRepeated:
+    """A stalled stream must alarm once, not ~96 times a day."""
+
+    def test_repeat_cycles_emit_the_warning_once(self, tmp_path: Path, event_config: Any) -> None:
+        import json as _json
+
+        epoch = current_epoch()
+        _seed_store(tmp_path / "events.sqlite", epoch)
+        runner = _runner(event_config, tmp_path, _FakeSubtensor())
+
+        runner.run_once()
+        runner.run_once()
+        runner.run_once()
+
+        log = (tmp_path / "state" / "events.ndjson").read_text().splitlines()
+        warnings = [
+            line
+            for line in log
+            if _json.loads(line).get("event_type") == "cycle_missing_verdict_markers"
+        ]
+        assert len(warnings) <= 1, f"warning repeated {len(warnings)} times across 3 cycles"
