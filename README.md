@@ -113,9 +113,9 @@ Before either the miner or validator quick-start works, you need:
 - [ ] For validators only: a **chain-issued validator permit** on that netuid (the chain grants this after enough stake; check via `btcli wallet overview`).
 - [ ] The target subnet must be operating in **plain `set_weights` mode** — i.e. the `commit_reveal_weights_enabled` hyperparameter on that netuid must be `False`. Phase 1 deliberately does not implement the commit-reveal weight submission scheme; if the subnet owner enables it, the runtime fails closed with `chain.commit_reveal_enabled`. See [`docs/validator.md` § Troubleshooting](./docs/validator.md#troubleshooting) for the operator-side fix.
 
-The platform-side values you will need (URL, `platform_instance_id`, signing key, burn hotkey) are all pre-filled for testnet 481 in [`configs/testnet.example.toml`](./configs/testnet.example.toml) — you do not need to obtain them separately.
+The platform-side values you will need (URL, `platform_instance_id`, signing key) are all pre-filled for testnet 481 in [`configs/testnet.example.toml`](./configs/testnet.example.toml) — you do not need to obtain them separately. The `[burn]` section there is inert: the burn target is the subnet owner hotkey read from chain and the rate is a locked constant, so editing it changes nothing.
 
-After the first `verify-*` succeeds, the bootstrap token is gone and your account holds the verified-role flag; subsequent operational tokens (for `snapshot:read`, etc.) are issued through the same BitFan portal under your now-verified role.
+After the first `verify-*` succeeds, the bootstrap token is gone and your account holds the verified-role flag; subsequent operational tokens are issued through the same BitFan portal under your now-verified role — for validators that means `ingest:register` and `events:read` on the live event path, with `snapshot:read:*` needed only if you fall back to the snapshot weight source.
 
 ---
 
@@ -125,7 +125,7 @@ The flow below targets the live testnet deployment (`netuid = 481` on `chain_net
 
 ### Miner
 
-Phase 1 miners **do not run a daemon**. The reward path is real BitFan Fan Group growth, scored off-chain by the platform; the subnet-side miner command exists to (a) verify the hotkey against the platform once and (b) print status diagnostics.
+Phase 1 miners **do not run a daemon**. The reward path is real BitFan Fan Group growth, measured off-chain by the platform and scored independently by every validator from the frozen open formula; the subnet-side miner command exists to (a) verify the hotkey against the platform once and (b) print status diagnostics.
 
 **Order matters: own a Fan Group first.** `verify-miner` requires that you already lead a Fan Group on BitFan (any platform user can create one — no miner status needed). It binds your hotkey to that existing leadership; it does not create a Fan Group.
 
