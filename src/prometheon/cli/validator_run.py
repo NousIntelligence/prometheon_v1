@@ -268,12 +268,14 @@ def _run_loop(
     correlation.
     """
     iteration = 0
+    last_cycle_failed = False
     interval_seconds = config.scheduler.weight_submission_check_interval_minutes * 60
     while True:
         iteration += 1
         echo_info(f"cycle {iteration} starting")
         try:
             result = runner.run_once()
+            last_cycle_failed = False
             echo_info(
                 f"cycle {iteration} result: status={result.plan.status}, "
                 f"submitted={result.submitted}, extrinsic={result.extrinsic_hash}"
@@ -284,10 +286,18 @@ def _run_loop(
             # so the operator sees the remediation inline.
             click.echo(f"cycle {iteration} failed:", err=True)
             click.echo(render_error(exc, verbose=verbose), err=True, nl=False)
+            last_cycle_failed = True
         except Exception as exc:
             click.echo(f"cycle {iteration} failed: {exc}", err=True)
+            last_cycle_failed = True
 
         if once or (cycles > 0 and iteration >= cycles):
+            # A bounded run is what supervisors and cron drive, so its exit
+            # status has to carry the outcome. Exiting 0 after a failed
+            # cycle makes the fail-closed path invisible to exactly the
+            # things watching for it.
+            if last_cycle_failed:
+                raise click.exceptions.Exit(1)
             return
         time.sleep(interval_seconds)
 

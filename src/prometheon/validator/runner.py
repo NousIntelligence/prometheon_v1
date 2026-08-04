@@ -221,6 +221,11 @@ class ValidatorRunner:
         self._last_event_scores: EventStreamScores | None = None
         self._last_event_cursors: dict[str, int] = {}
         self._last_scores_hash: str | None = None
+        # Emitted-once state for the marker warning: a stalled exclusion
+        # stream would otherwise log an identical WARNING every cycle —
+        # ~96 a day at the default cadence — which buries the signal it
+        # exists to raise. Re-emits when the set of overdue days changes.
+        self._last_missing_markers: tuple[str, ...] | None = None
 
     # -----------------------------------------------------------------
     # Public entry point
@@ -413,36 +418,34 @@ class ValidatorRunner:
             cursors = {family.value: store.last_stored_seq(family) for family in EventFamily}
             stored_in_window = store.record_count_in_epochs(window_epochs(epoch))
 
-        # A store with nothing in the window scores to zero miners, which
-        # the engine turns into a full-burn vector — a real economic action
-        # taken on absent input. "Nobody qualified" and "nothing arrived"
-        # are indistinguishable downstream, so they are separated here: the
-        # first is a legitimate verdict, the second is a local malfunction
-        # (ingest down, wrong events_db, or a stream that never started).
+        # An empty store scores to zero miners, which the engine turns into
+        # a full-burn vector — a real economic action taken on absent input.
+        # The runner already refuses a MISSING store; a store that never
+        # received anything is the same class of failure.
         #
-        # The count spans ALL FOUR families deliberately, not just activity.
-        # The platform seals a verdicts_complete marker every day even when
-        # nothing happened, so a live stream always leaves records in the
-        # window. That makes the two cases separable: a quiet subnet with a
-        # healthy stream still counts records here and still burns — which
-        # is the honest verdict when no miner earned anything — while a dead
-        # stream counts zero and stops. Counting activity alone would
-        # conflate them and refuse to submit through a legitimately quiet
-        # period, which is exactly the pre-launch state this subnet is in.
+        # The signal is the CURSORS, not the window. "Zero records in the
+        # last 14 days" cannot tell "the stream never started" from "the
+        # stream stopped 15 days ago", and the second is just a store that
+        # is behind — which must never gate submission. A validator that is
+        # merely stale should submit its stale vector and let consensus
+        # clip it; only one that has never received a single record has no
+        # input at all.
         #
-        # This is not a completeness gate. It never asks whether the store
-        # matches the platform's — divergence is chain consensus's problem.
-        # It asks only whether there is any input at all, the same question
-        # the missing-store check above already answers, and the cycle loop
-        # simply retries next tick rather than exiting.
-        if stored_in_window == 0:
+        # Cursors also avoid depending on an unverified platform behaviour.
+        # Gating on window emptiness would have relied on the contract's
+        # prose that a verdicts_complete marker is sealed even on a day
+        # with no verdicts — which has no fixture, and if it is wrong the
+        # count is zero on every validator at once and the whole set stops
+        # setting weights together.
+        if all(cursor == 0 for cursor in cursors.values()):
             raise EventWeightSourceError(
-                f"event store {db_path} holds no records for the scoring window "
-                f"({window_epochs(epoch)[0]} … {epoch}). Submitting now would burn "
-                "100% of the weight pool on absent input, so this cycle submits "
-                "nothing. Check that 'ingest serve' is running against this exact "
-                "path, that the platform has enabled delivery, and run "
-                "'prometheon ingest backfill' if you are joining a running stream."
+                f"event store {db_path} has never received a record on any family "
+                "(all four stream cursors are 0). Submitting now would burn 100% of "
+                "the weight pool on absent input, so this cycle submits nothing. "
+                "Check that 'ingest serve' is running against this exact path, that "
+                "the endpoint is registered and the platform has enabled delivery, "
+                "and run 'prometheon ingest backfill' if you are joining a running "
+                "stream."
             )
 
         report = build_parity_report(scores)
@@ -467,7 +470,7 @@ class ValidatorRunner:
         # means the exclusion stream stalled — every anti-fraud verdict with
         # it. Scores silently drift to full weight, so this gets its own
         # event rather than riding along as a field nobody greps for.
-        if scores.missing_markers:
+        if scores.missing_markers and scores.missing_markers != self._last_missing_markers:
             report_event(
                 event_type="cycle_missing_verdict_markers",
                 state_directory=self._state_directory,
@@ -478,6 +481,7 @@ class ValidatorRunner:
                     "marker; their activity is scored at full weight"
                 ),
             )
+        self._last_missing_markers = scores.missing_markers
         # The plan's identity fields carry the inputs, not a fake snapshot
         # id — anything that reads state must be able to tell the two
         # sources apart at a glance.
