@@ -135,6 +135,30 @@ without storing; a forward gap is rejected so the backfill client fills it).
 A `2xx` always reports `received_through_seq` — the only field the platform
 reads.
 
+**Use an absolute `--db` path in any service unit or container.** The default
+`.validator-state/events.sqlite` is relative to the working directory, so an
+ingest service started from `/` and a runner started from the repo root would
+silently open two different stores — the runner would then score an empty one.
+`[validator] events_db` and `ingest serve --db` must name the *same absolute
+file*.
+
+### Liveness
+
+The service answers `GET /healthz` with `200 {"status": "ok"}` on the same
+listener. It takes no auth and touches no database, so it reports "the process
+is up and accepting connections", not "ingest is healthy" — use it for systemd
+watchdogs, container health checks, and your uptime monitor. Keep it on the
+private side of the reverse proxy, or expose it deliberately; the platform
+does not call it.
+
+```bash
+curl -fsS http://127.0.0.1:8541/healthz
+```
+
+For whether the stream is actually *current*, use `prometheon ingest check-day`
+and the `last_stream_cursors` telemetry the runner writes — a process can be
+perfectly alive and receiving nothing.
+
 ---
 
 ## Catch-up and completeness

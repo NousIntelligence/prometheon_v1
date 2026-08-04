@@ -1,0 +1,78 @@
+# Prometheon validator — the two processes a working validator needs.
+#
+#   export PROMETHEON_VALIDATOR_API_TOKEN="<long-lived token>"   # runner only
+#   export PROMETHEON_CONFIG="$HOME/prometheon-testnet.toml"
+#   docker compose -f docker/compose.yaml up --build
+#
+# `ingest` receives the platform's signed event pushes and is the only writer
+# of the event store. `validator` opens that same store read-only, rescores the
+# rolling window every cycle, and submits weights. Both mount one named volume
+# so they share the file, and `[validator] events_db` in your config must be
+# the absolute path below — the default is relative and would resolve
+# differently inside each container:
+#
+#   events_db = "/var/lib/prometheon/state/events.sqlite"
+#
+# Put a TLS reverse proxy in front of `ingest`: the platform dials a public
+# HTTPS URL and treats a redirect as a delivery failure. See
+# docs/decentralized-validation.md for the proxy config and endpoint
+# registration.
+
+services:
+  ingest:
+    image: prometheon-validator:dev
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.validator
+    restart: unless-stopped
+    ports:
+      # Bound to loopback — the reverse proxy is what faces the internet.
+      - "127.0.0.1:8541:8541"
+    # No API token here on purpose: `ingest serve` authenticates each push by
+    # the platform's publisher signature, not by a token of yours. Only
+    # `ingest register-endpoint` (a one-off, run by hand) needs one.
+    volumes:
+      - ${PROMETHEON_CONFIG:?set this to the path of your validator TOML}:/etc/prometheon/config.toml:ro
+      - state:/var/lib/prometheon/state
+    command:
+      - ingest
+      - serve
+      - --config=/etc/prometheon/config.toml
+      - --db=/var/lib/prometheon/state/events.sqlite
+      - --host=0.0.0.0
+      - --port=8541
+    healthcheck:
+      # Liveness only: the process is up and accepting connections. It says
+      # nothing about whether the stream is current — use `ingest check-day`
+      # for that.
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen("http://127.0.0.1:8541/healthz").read()
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  validator:
+    image: prometheon-validator:dev
+    restart: unless-stopped
+    # Ordering only, not a hard dependency: if ingest is down the runner fails
+    # its cycle with validator.event_weight_source and retries on schedule.
+    depends_on:
+      - ingest
+    environment:
+      PROMETHEON_VALIDATOR_API_TOKEN: ${PROMETHEON_VALIDATOR_API_TOKEN:?set this to your long-lived validator token}
+    volumes:
+      - ${HOME}/.bittensor:/home/prometheon/.bittensor:ro
+      - ${PROMETHEON_CONFIG:?set this to the path of your validator TOML}:/etc/prometheon/config.toml:ro
+      - state:/var/lib/prometheon/state
+    command:
+      - validator
+      - run
+      - --config=/etc/prometheon/config.toml
+      - --state-directory=/var/lib/prometheon/state
+
+volumes:
+  state:
