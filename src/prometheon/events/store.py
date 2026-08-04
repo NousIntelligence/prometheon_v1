@@ -301,10 +301,13 @@ class EventStore:
         """
         if not epochs:
             return 0
-        placeholders = ",".join("?" for _ in epochs)
+        # The scoring window is a contiguous run of days and epoch_id is
+        # ISO-8601, so lexicographic BETWEEN is exactly equivalent to an
+        # IN over the same dates — with a fixed query string rather than
+        # one assembled at runtime.
         row = self._connection.execute(
-            f"SELECT COUNT(*) FROM event_records WHERE epoch_id IN ({placeholders})",  # noqa: S608
-            tuple(epochs),
+            "SELECT COUNT(*) FROM event_records WHERE epoch_id BETWEEN ? AND ?",
+            (min(epochs), max(epochs)),
         ).fetchone()
         return int(row[0])
 
@@ -323,17 +326,20 @@ class EventStore:
         Exists so an operator can see the size of a deletion before making
         it, on a store whose contents feed live weights.
         """
-        families = tuple(family.value for family in WINDOW_FAMILIES)
-        placeholders = ",".join("?" for _ in families)
-        records = self._connection.execute(
-            f"SELECT COUNT(*) FROM event_records WHERE family IN ({placeholders}) "  # noqa: S608
-            "AND epoch_id < ?",
-            (*families, before_epoch),
-        ).fetchone()
+        # One fixed query per window family rather than an IN-clause built
+        # at runtime: the same result, and the (family, epoch_id, seq)
+        # index can seek on each.
+        records = 0
+        for family in sorted(f.value for f in WINDOW_FAMILIES):
+            row = self._connection.execute(
+                "SELECT COUNT(*) FROM event_records WHERE family = ? AND epoch_id < ?",
+                (family, before_epoch),
+            ).fetchone()
+            records += int(row[0])
         nonces = self._connection.execute(
             "SELECT COUNT(*) FROM ingest_nonces WHERE seen_at < ?", (before_nonce,)
         ).fetchone()
-        return PrunableCounts(records=int(records[0]), nonces=int(nonces[0]))
+        return PrunableCounts(records=records, nonces=int(nonces[0]))
 
     def prune_window_families(self, *, before_epoch: str) -> int:
         """Delete window-family records with ``epoch_id < before_epoch``.
