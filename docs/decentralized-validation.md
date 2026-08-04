@@ -59,6 +59,19 @@ Completeness is *not* checked before submission — the validator submits
 what it has and chain consensus resolves any divergence. `check-day` below
 tells you whether you are complete; it never gates the runner.
 
+The runner refuses only one thing: a store that has **never received a
+record on any family** (all four cursors at 0). That is absent input, not
+a store that is behind, and submitting from it would burn 100% of the
+weight pool. A validator that is merely stale still submits its stale
+vector.
+
+**Run `check-day` regularly — it is the only thing that catches a partly
+stalled stream.** If `activity` stops arriving while the other families
+keep flowing, the validator scores what it has, finds nobody qualified,
+and submits a full burn. That is indistinguishable from a genuinely quiet
+day without comparing against the platform's signed digests, which is
+exactly what `check-day` does.
+
 ---
 
 ## Setting up the ingest endpoint
