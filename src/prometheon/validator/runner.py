@@ -154,8 +154,10 @@ class RunnerError(Exception):
 class EventWeightSourceError(RunnerError):
     """The local event store cannot produce weights this cycle.
 
-    Raised before any chain interaction, so a cycle that cannot score
-    submits nothing rather than submitting from partial inputs.
+    Raised while building the plan — after the metagraph read, before any
+    weight is computed or submitted — so a cycle that cannot score submits
+    nothing rather than deriving a vector from absent input. The cycle
+    loop catches it, records it, and retries on the next tick.
     """
 
     code: str = "validator.event_weight_source"

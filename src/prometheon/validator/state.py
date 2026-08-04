@@ -194,14 +194,19 @@ def _rotate_if_oversized(
     except FileNotFoundError:
         return
 
-    oldest = path.with_suffix(path.suffix + f".{keep}")
-    if oldest.exists():
-        oldest.unlink()
-    for index in range(keep - 1, 0, -1):
-        source = path.with_suffix(path.suffix + f".{index}")
-        if source.exists():
-            source.rename(path.with_suffix(path.suffix + f".{index + 1}"))
-    path.rename(path.with_suffix(path.suffix + ".1"))
+    # Rotation is best-effort: losing a log line is acceptable, failing a
+    # scoring cycle because a rotation slot was occupied or another process
+    # rotated first is not. Any OS error here leaves the live file in place
+    # and the append proceeds.
+    with contextlib.suppress(OSError):
+        oldest = path.with_suffix(path.suffix + f".{keep}")
+        if oldest.exists():
+            oldest.unlink()
+        for index in range(keep - 1, 0, -1):
+            source = path.with_suffix(path.suffix + f".{index}")
+            if source.exists():
+                source.rename(path.with_suffix(path.suffix + f".{index + 1}"))
+        path.rename(path.with_suffix(path.suffix + ".1"))
 
 
 __all__ = [
