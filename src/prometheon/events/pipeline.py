@@ -254,9 +254,15 @@ def score_event_stream(
             # verdict into a KeyError that aborted the whole scoring run.
             weight = core.get("weight_bp", FULL_WEIGHT_BP)
             existing = weights.get((user, applies_to))
-            # At-most-one verdict per (user, epoch) is guaranteed; if a
-            # duplicate ever appears, the lowest weight wins (and the
-            # count mismatch below raises the alarm).
+            # Several verdicts for one (user, epoch) are normal, not an
+            # anomaly: the platform emits a readout whenever the risk or
+            # cluster multiplier moves, and those are monotonically
+            # non-increasing across the day. The lowest wins, so the result
+            # does not depend on which order the records arrived in — two
+            # validators receiving the same readouts in different batches
+            # must still score identically. The marker counts records, not
+            # users, so a lost tightening shows up as a count mismatch
+            # rather than as a silently more lenient weight.
             weights[(user, applies_to)] = weight if existing is None else min(existing, weight)
             verdict_counts[applies_to] = verdict_counts.get(applies_to, 0) + 1
         elif core.get("kind") == "verdicts_complete":

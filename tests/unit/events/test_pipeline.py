@@ -462,3 +462,128 @@ class TestMarkerGracePeriod:
 
         # 2026-07-14's marker was due 00:05 and the 2h grace expired at 02:05.
         assert SCORING_DATE in result.missing_markers
+
+
+class TestTighteningVerdicts:
+    """Several verdicts for one (user, epoch), as continuous emission produces.
+
+    Under day-close batching a user got exactly one verdict. Under continuous
+    emission the platform emits a readout whenever the risk or cluster
+    multiplier moves, and those readouts are monotonically non-increasing —
+    a cluster crossing threshold at 23:00 retroactively tightens the whole
+    day. Each tightening arrives as a distinct record, and the marker counts
+    records rather than users precisely so a lost tightening is detectable.
+
+    These cases pin our half of that agreement before the platform's r5
+    fixtures land.
+    """
+
+    @staticmethod
+    def _tightening_store(
+        path: Path, weights: list[int], *, marker_count: int | None = None
+    ) -> None:
+        store = EventStore(path)
+        activity = [
+            _envelope(
+                "activity",
+                seq,
+                SCORING_DATE,
+                _activity_core("service_detail_view", seq, SCORING_DATE),
+                received_ts=f"{SCORING_DATE}T09:{seq:02d}:00Z",
+            )
+            for seq in range(1, 5)
+        ]
+        store.append(EventFamily.ACTIVITY, prepare_wire_records(EventFamily.ACTIVITY, activity))
+
+        records = []
+        for index, weight_bp in enumerate(weights, start=1):
+            records.append(
+                _envelope(
+                    "exclusion",
+                    index,
+                    SCORING_DATE,  # emitted during the day it applies to
+                    {
+                        "kind": "verdict",
+                        "applies_to_epoch": SCORING_DATE,
+                        "weight_bp": weight_bp,
+                        "reason_codes": ["device_cluster"],
+                    },
+                    # A distinct event_id per tightening: the discriminator
+                    # the platform adds so a readout is a new record and not
+                    # a duplicate that wedges the stream.
+                    event_id="0x"
+                    + hashlib.sha256(f"verdict-{index}-{weight_bp}".encode()).hexdigest(),
+                    received_ts=f"{SCORING_DATE}T{9 + index:02d}:00:00Z",
+                )
+            )
+        records.append(
+            _envelope(
+                "exclusion",
+                len(weights) + 1,
+                "2026-07-15",
+                {
+                    "kind": "verdicts_complete",
+                    "applies_to_epoch": SCORING_DATE,
+                    "verdict_count": len(weights) if marker_count is None else marker_count,
+                },
+                user_ref_evt=None,
+                received_ts="2026-07-15T00:05:01Z",
+            )
+        )
+        store.append(EventFamily.EXCLUSION, prepare_wire_records(EventFamily.EXCLUSION, records))
+        store.close()
+
+    def test_the_tightest_verdict_of_the_day_is_the_one_applied(self, tmp_path: Path) -> None:
+        """Three readouts, 10000 → 5000 → 2500: the day scores at 2500bp.
+
+        Not the first readout seen, and not the last one stored — the lowest.
+        Order of arrival must not decide the outcome, since two validators can
+        receive the same three records in different batches.
+        """
+        path = tmp_path / "tightened.sqlite"
+        self._tightening_store(path, [10000, 5000, 2500])
+
+        with EventStore(path) as store:
+            result = score_event_stream(store, scoring_date=SCORING_DATE)
+
+        # Unrestricted the day is 8 points; floor(8 * 2500 / 10000) = 2.
+        assert result.daily_scores == {(USER, SCORING_DATE): 2}
+
+    def test_arrival_order_does_not_change_the_result(self, tmp_path: Path) -> None:
+        """The same three readouts stored tightest-first score identically."""
+        ascending = tmp_path / "asc.sqlite"
+        descending = tmp_path / "desc.sqlite"
+        self._tightening_store(ascending, [10000, 5000, 2500])
+        self._tightening_store(descending, [2500, 5000, 10000])
+
+        with EventStore(ascending) as store:
+            first = score_event_stream(store, scoring_date=SCORING_DATE)
+        with EventStore(descending) as store:
+            second = score_event_stream(store, scoring_date=SCORING_DATE)
+
+        assert first.daily_scores == second.daily_scores == {(USER, SCORING_DATE): 2}
+
+    def test_a_record_counting_marker_matches_a_multi_tightening_day(self, tmp_path: Path) -> None:
+        """Three verdicts, marker says three: complete, no alarm."""
+        path = tmp_path / "counted.sqlite"
+        self._tightening_store(path, [10000, 5000, 2500])
+
+        with EventStore(path) as store:
+            result = score_event_stream(store, scoring_date=SCORING_DATE)
+
+        assert result.verdict_count_mismatch == {}
+
+    def test_a_lost_tightening_is_caught_by_the_record_count(self, tmp_path: Path) -> None:
+        """The failure that decided records-not-users.
+
+        The marker was sealed over three verdicts; only two arrived. A
+        distinct-user count would still read 1 and match, and min-wins would
+        quietly apply the more lenient 5000 rather than the true 2500.
+        """
+        path = tmp_path / "lost.sqlite"
+        self._tightening_store(path, [10000, 5000], marker_count=3)
+
+        with EventStore(path) as store:
+            result = score_event_stream(store, scoring_date=SCORING_DATE)
+
+        assert result.verdict_count_mismatch == {SCORING_DATE: (2, 3)}

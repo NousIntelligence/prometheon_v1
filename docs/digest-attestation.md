@@ -203,6 +203,15 @@ after the day's digests are sealed, so expect a burst rather than a trickle.
 same reasoning — an attestation cannot affect scoring, and validators already
 hold the scope. Existing operational tokens work unchanged.
 
+**Rotating your hotkey invalidates pending attestations.** The platform
+checks that the signing hotkey is a registered validator, so after a rotation
+two things happen: attestations already signed by the old hotkey but not yet
+delivered are refused permanently, and new ones succeed only once the
+platform holds the new binding. Rotate, let `verify-validator` complete, and
+expect a handful of `rejected` entries for the old key — they are evidence
+you still hold locally, not data loss. See
+[`hotkey-rotation.md`](./hotkey-rotation.md).
+
 **Rejection is permanent; failure is not.** The platform verifies the
 signature and checks that the hotkey is a registered validator, refusing
 anything that fails with a 4xx. A 4xx other than `429` is treated as final:
