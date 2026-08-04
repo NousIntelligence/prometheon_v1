@@ -73,7 +73,14 @@ The submission body is the envelope plus two fields:
 }
 ```
 
-`version` is informational. `signature` is not part of the signed bytes.
+**Neither `signature` nor `version` is signed.** The signed envelope is the
+nine fields above — the wire body's eleven minus those two. Reading it as
+"the body minus `signature`" leaves `version` inside the envelope, produces
+different bytes, and rejects every attestation ever sent.
+
+`version` is a schema marker for readers, deliberately outside the signature:
+bumping it must not invalidate attestations already made. `signature` cannot
+sign itself.
 
 ---
 

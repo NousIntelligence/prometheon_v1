@@ -195,12 +195,24 @@ For an event-by-event view, tail the NDJSON log:
 tail -F .validator-state/events.ndjson | jq .
 ```
 
-Event types emitted:
+Event types emitted — a live cycle writes more than one line:
 
+- `cycle_scored_from_events` — the rolling window was rescored from the local
+  event store; carries the epoch, `scores_hash`, engine version, and the four
+  stream cursors.
+- `cycle_missing_verdict_markers` — **WARNING.** Closed days in the window
+  have no `verdicts_complete` marker, so their activity is being scored at
+  full weight. The exclusion stream has stalled; investigate with
+  `prometheon ingest check-day`. This is the one alarm on the live path.
 - `cycle_submitted` — successful chain submission.
 - `cycle_no_valid_weight_target` — Case D (fail closed; no submission).
 - `cycle_dry_run` — `dry_run=true` or `submit_weights=false`.
 - `cycle_failed` — exception during a cycle (the runner re-raises after persisting).
+- `digest_attestation` — sealed day digests countersigned this cycle; carries
+  per-status counts and any problems. See
+  [Day-digest attestation](#day-digest-attestation).
+- `digest_attestation_failed` — the attestation sweep itself errored. Swallowed
+  and retried next cycle; it never fails a cycle.
 
 ---
 

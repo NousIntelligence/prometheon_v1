@@ -281,8 +281,13 @@ the other way — the Platform `POST`s signed batches to the validator's
 registered ingest URL — and is documented in
 [the operator guide](./decentralized-validation.md).
 
-All three carry `Authorization: Bearer` **plus the binding headers**; none of
-them require the signed-request header set.
+All of them carry `Authorization: Bearer` **plus the binding headers**; none
+require the signed-request header set.
+
+`POST /api/v1/prometheon/events/digest/attestation` follows the same
+convention: it is how a validator returns its countersignature over a sealed
+day digest, under scope `events:read`. The record shape and verification
+rules are in [`digest-attestation.md`](./digest-attestation.md).
 
 ### `POST /api/v1/prometheon/identity/ingest-endpoint`
 
@@ -450,7 +455,7 @@ Every non-2xx response carries a JSON envelope of the following shape:
 
 `details` is omitted for the majority of codes; six codes carry a structured payload — see [`security.md` § Typed Details and Privacy Backstop](./security.md#typed-details-and-privacy-backstop) for the per-code field list and the privacy-backstop key-pattern filter the CLI applies at parse time.
 
-Wire codes match one of two shapes:
+Wire codes match one of three shapes:
 
 - `UPPER_SNAKE` — identity, hotkey, snapshot, binding-ledger, and cross-environment codes.
 - `dotted.lowercase` — the five granular `signature.*` primitives.

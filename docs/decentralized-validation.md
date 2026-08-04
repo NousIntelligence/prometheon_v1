@@ -163,7 +163,11 @@ perfectly alive and receiving nothing.
 
 ## Catch-up and completeness
 
-Both are **operator-run today** — nothing schedules them yet. Run them by
+**Backfill is operator-run today** — nothing schedules it yet; run it by hand after an
+incident, and from cron during the shadow phase. The completeness comparison is no longer
+operator-only: with `[validator] attest_digests` on (the default) the runner repeats it
+every cycle for each unsigned sealed day in the window and reports a mismatch as a problem.
+`check-day` remains the way to inspect one day by hand. Run them by
 hand after an incident, and from cron during the shadow phase; automatic
 scheduling arrives with the runtime automation glue.
 
