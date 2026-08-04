@@ -97,6 +97,7 @@ from prometheon.platform.signing import (
     verify_aggregate_snapshot,
     verify_detailed_manifest,
 )
+from prometheon.validator.attestor import DigestAttestor, summarize, utc_today
 from prometheon.validator.config import ValidatorConfig, WeightSource
 from prometheon.validator.report import hotkey_fingerprint, report_event
 from prometheon.validator.state import (
@@ -211,6 +212,7 @@ class ValidatorRunner:
         wallet_hotkey: Keypair,
         capabilities: ChainAdapterCapabilities,
         state_directory: Path | str = DEFAULT_STATE_DIR,
+        attestor: DigestAttestor | None = None,
     ) -> None:
         self._config = config
         self._client = platform_client
@@ -218,6 +220,7 @@ class ValidatorRunner:
         self._wallet_hotkey = wallet_hotkey
         self._capabilities = capabilities
         self._state_directory = Path(state_directory)
+        self._attestor = attestor
         self._last_event_scores: EventStreamScores | None = None
         self._last_event_cursors: dict[str, int] = {}
         self._last_scores_hash: str | None = None
@@ -251,6 +254,40 @@ class ValidatorRunner:
                 message=message,
             )
             raise
+        finally:
+            # Attestation is independent of the chain half of the cycle, so
+            # it runs whether or not weights were submitted — a validator
+            # whose chain call failed still holds the day's records and can
+            # still say what it received.
+            self._attest_sealed_days()
+
+    def _attest_sealed_days(self) -> None:
+        """Countersign sealed day digests that match the local record set.
+
+        Bookkeeping beside the cycle, never part of it: every failure is
+        swallowed after being reported, because a validator that cannot
+        reach the read API must still submit weights. Retry is the next
+        cycle, which costs nothing.
+        """
+        if self._attestor is None or not self._config.validator.attest_digests:
+            return
+        try:
+            with EventStore(self._config.validator.events_db, read_only=True) as store:
+                outcomes = self._attestor.attest_pending(store=store, today=utc_today())
+            if outcomes:
+                report_event(
+                    event_type="digest_attestation",
+                    state_directory=self._state_directory,
+                    **summarize(outcomes),
+                )
+        except Exception as exc:
+            code, message = _safe_failure_summary(exc)
+            report_event(
+                event_type="digest_attestation_failed",
+                state_directory=self._state_directory,
+                code=code,
+                message=message,
+            )
 
     # -----------------------------------------------------------------
     # Cycle steps

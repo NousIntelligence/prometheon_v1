@@ -17,11 +17,14 @@ Loop control:
 
 from __future__ import annotations
 
+import contextlib
 import tempfile
 import time
 from pathlib import Path
+from typing import Any
 
 import click
+import httpx
 
 from prometheon.chain.subtensor import (
     connect as connect_subtensor,
@@ -37,12 +40,15 @@ from prometheon.chain.uids import resolve_plan_targets
 from prometheon.chain.wallet import get_hotkey_keypair, load_wallet
 from prometheon.chain.weights import to_u16_chain_vector
 from prometheon.cli._common import echo_info, echo_success, read_api_token_or_exit
+from prometheon.cli.ingest_cmd import build_backfill_config
 from prometheon.cli.renderer import render_error
+from prometheon.events.backfill import BackfillClient
 from prometheon.identity.errors import IdentityError
 from prometheon.identity.roles import Role
 from prometheon.platform.client import BitFanClient
 from prometheon.platform.errors import PlatformError
 from prometheon.security.signatures import SignatureError
+from prometheon.validator.attestor import DigestAttestor
 from prometheon.validator.config import (
     ValidatorConfig,
     WeightSource,
@@ -145,6 +151,52 @@ def run(
         f"supports_mechid={capabilities.supports_mechid}"
     )
 
+    with contextlib.ExitStack() as stack:
+        attestor: DigestAttestor | None = None
+        if config.validator.attest_digests:
+            # The runner is the only long-running process holding an
+            # unlocked hotkey, so this is where a countersignature can be
+            # produced without an operator present. The HTTP client lives
+            # as long as the loop does.
+            http = stack.enter_context(
+                httpx.Client(timeout=config.platform.request_timeout_seconds)
+            )
+            attestor = DigestAttestor(
+                client=BackfillClient(build_backfill_config(config, api_token=api_token), http),
+                keypair=keypair,
+                state_directory=state_directory,
+                submit=config.validator.submit_attestations,
+            )
+        _run_with_clients(
+            config=config,
+            api_token=api_token,
+            keypair=keypair,
+            wallet=wallet,
+            subtensor=subtensor,
+            capabilities=capabilities,
+            state_directory=state_directory,
+            attestor=attestor,
+            once=once,
+            cycles=cycles,
+            verbose=verbose,
+        )
+
+
+def _run_with_clients(
+    *,
+    config: ValidatorConfig,
+    api_token: str,
+    keypair: Any,
+    wallet: Any,
+    subtensor: Any,
+    capabilities: Any,
+    state_directory: Path,
+    attestor: DigestAttestor | None,
+    once: bool,
+    cycles: int,
+    verbose: bool,
+) -> None:
+    """Open the platform client and drive the cycle loop."""
     with BitFanClient(
         base_url=config.platform.base_url,
         api_token=api_token,
@@ -162,6 +214,7 @@ def run(
             wallet_hotkey=keypair,
             capabilities=capabilities,
             state_directory=state_directory,
+            attestor=attestor,
         )
         _run_loop(runner, config=config, once=once, cycles=cycles, verbose=verbose)
     echo_success("validator runner exited cleanly")

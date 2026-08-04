@@ -35,7 +35,12 @@ from pathlib import Path
 import click
 import httpx
 
-from prometheon.cli._common import echo_info, echo_success, read_api_token_or_exit
+from prometheon.cli._common import (
+    echo_info,
+    echo_success,
+    load_hotkey_or_exit,
+    read_api_token_or_exit,
+)
 from prometheon.events.backfill import (
     BackfillClient,
     BackfillConfig,
@@ -51,6 +56,7 @@ from prometheon.events.pipeline import (
     MissingVerdictsError,
     build_parity_report,
     diff_miner_records,
+    parse_epoch,
     score_event_stream,
 )
 from prometheon.events.records import EventFamily
@@ -61,6 +67,11 @@ from prometheon.events.store import (
     EventStore,
 )
 from prometheon.mechanisms.phase1_growth.snapshot import MinerRecord
+from prometheon.validator.attestor import (
+    DEFAULT_LOOKBACK_DAYS,
+    DigestAttestor,
+    utc_today,
+)
 from prometheon.validator.config import ValidatorConfig, load_validator_config
 
 DEFAULT_EVENTS_DB = Path(".validator-state/events.sqlite")
@@ -684,3 +695,124 @@ def score(
 
 
 __all__ = ["build_backfill_config", "build_ingest_config", "ingest"]
+
+
+@ingest.command(name="attest")
+@click.option(
+    "--config",
+    "config_path",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Validator TOML config (supplies base URL + the environment binding).",
+)
+@click.option(
+    "--db",
+    "db_path",
+    default=None,
+    type=click.Path(dir_okay=False, path_type=Path),
+    help="SQLite event-store path. Defaults to [validator] events_db in --config.",
+)
+@click.option(
+    "--state-directory",
+    type=click.Path(file_okay=False, path_type=Path),
+    default=Path(".validator-state"),
+    show_default=True,
+    help="Where attestations.ndjson is written.",
+)
+@click.option(
+    "--wallet-name",
+    required=True,
+    help="Bittensor wallet (coldkey) name holding the validator hotkey.",
+)
+@click.option("--wallet-hotkey", required=True, help="Validator hotkey name; it signs.")
+@click.option(
+    "--date",
+    "epoch_id",
+    default=None,
+    help="Attest one epoch (YYYY-MM-DD). Omit to sweep every unattested sealed day.",
+)
+@click.option(
+    "--family",
+    "selected_families",
+    multiple=True,
+    type=click.Choice([f.value for f in EventFamily]),
+    help="Restrict to these families (repeatable). Default: all four.",
+)
+@click.option("--submit/--no-submit", default=False, help="Also POST to the platform.")
+@click.option("--api-token", default=None, help="Long-lived validator token.")
+@click.option(
+    "--api-token-env",
+    default="PROMETHEON_VALIDATOR_API_TOKEN",
+    show_default=True,
+    help="Environment variable holding the token (scope events:read).",
+)
+def attest(
+    config_path: Path,
+    db_path: Path | None,
+    state_directory: Path,
+    wallet_name: str,
+    wallet_hotkey: str,
+    epoch_id: str | None,
+    selected_families: tuple[str, ...],
+    submit: bool,
+    api_token: str | None,
+    api_token_env: str,
+) -> None:
+    """Countersign sealed day digests that match the local record set.
+
+    The validator runner does this automatically every cycle; this command
+    exists for a one-off, for a validator that runs the ingest half only,
+    and for re-attesting a specific day after a backfill.
+
+    A digest is signed only when the locally recomputed hash and count
+    match it. A mismatch is never signed and exits 3 — that is the signal
+    the mechanism exists to produce, not an inconvenience to retry past.
+    """
+    config = load_validator_config(config_path)
+    token = read_api_token_or_exit(env_var=api_token_env, explicit=api_token)
+    keypair = load_hotkey_or_exit(name=wallet_name, hotkey_name=wallet_hotkey)
+    families = tuple(_families(selected_families))
+    # The config already names the store; --db overrides it. Defaulting to a
+    # relative path instead meant the documented invocation opened a store
+    # that did not exist and died on a raw sqlite error.
+    store_path = db_path or config.validator.events_db
+
+    with httpx.Client(timeout=60.0) as http:
+        client = BackfillClient(build_backfill_config(config, api_token=token), http)
+        attestor = DigestAttestor(
+            client=client,
+            keypair=keypair,
+            state_directory=state_directory,
+            submit=submit,
+            families=families,
+            lookback_days=1 if epoch_id else DEFAULT_LOOKBACK_DAYS,
+            # An operator is present and waiting; the per-cycle ceiling that
+            # protects weight submission has no purpose here.
+            budget_seconds=None,
+        )
+        with EventStore(store_path, read_only=True) as store:
+            if epoch_id:
+                # sealed_epochs_before(today) yields the days *before*
+                # today, so ask for the day after the requested one.
+                day_after = (
+                    datetime.strptime(parse_epoch(epoch_id), "%Y-%m-%d") + timedelta(days=1)
+                ).strftime("%Y-%m-%d")
+                outcomes = attestor.attest_pending(store=store, today=day_after)
+            else:
+                outcomes = attestor.attest_pending(store=store, today=utc_today())
+
+    if not outcomes:
+        echo_info("nothing to attest; every sealed day in range is already signed")
+        return
+
+    for outcome in outcomes:
+        if outcome.status in ("signed", "submitted"):
+            echo_success(f"{outcome.key}: {outcome.status}")
+        elif outcome.status == "pending_seal":
+            echo_info(f"{outcome.key}: not sealed yet — re-run after the seal deadline")
+        else:
+            click.echo(f"{outcome.key}: {outcome.status} — {outcome.detail}", err=True)
+
+    failures = [o for o in outcomes if o.status in ("mismatch", "error")]
+    if failures:
+        raise click.exceptions.Exit(3)

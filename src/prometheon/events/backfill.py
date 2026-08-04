@@ -216,6 +216,11 @@ class SignedDayDigest:
     record_count: int
     platform_key_id: str
     signed_at: str
+    # The platform's signature over this digest, retained so a validator
+    # attestation can bind to the exact signed artifact it verified rather
+    # than to its contents alone — two keys can sign identical contents
+    # across a rotation, and an attestation should name which one it saw.
+    signature: str
 
 
 @dataclass(frozen=True)
@@ -338,6 +343,7 @@ def verify_signed_digest(
         record_count=record_count,
         platform_key_id=key_id,
         signed_at=signed_at,
+        signature=signature,
     )
 
 
@@ -407,6 +413,47 @@ class BackfillClient:
                     status_code=response.status_code,
                 )
             return payload
+
+        raise BackfillError(f"read API {path} exhausted {attempts} attempts")
+
+    def post_json(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
+        """POST a JSON body to a read-API path and return the unwrapped payload.
+
+        Same envelope handling, environment binding, and retry policy as
+        :meth:`_get`. Retries are safe here because the only body posted on
+        this path is an attestation, which the platform stores at most once
+        per (validator, family, epoch): a duplicate delivery is a no-op, so
+        a retried POST cannot double-count.
+        """
+        url = self._config.base_url.rstrip("/") + path
+        headers = bearer_auth_headers(
+            api_token=self._config.api_token,
+            chain_network=self._config.chain_network,
+            platform_instance_id=self._config.platform_instance_id,
+        )
+        attempts = self._config.max_retries + 1
+        for attempt in range(1, attempts + 1):
+            try:
+                response = self._http.post(url, json=body, headers=headers)
+            except httpx.HTTPError as exc:
+                raise BackfillError(f"read API {path} unreachable: {exc}") from exc
+
+            if response.status_code in _RETRY_STATUS and attempt < attempts:
+                self._sleep(self._retry_delay(response, attempt))
+                continue
+
+            try:
+                parsed: Any = response.json()
+            except ValueError:
+                parsed = response.text
+            if response.status_code not in (200, 201, 202) or is_error_envelope(parsed):
+                raise self._failure(path, response.status_code, parsed, {})
+            if not isinstance(parsed, dict):
+                # A 2xx with a non-object body still means "accepted"; the
+                # platform is not required to return anything useful here.
+                return {}
+            payload = unwrap_success_envelope(parsed)
+            return payload if isinstance(payload, dict) else {}
 
         raise BackfillError(f"read API {path} exhausted {attempts} attempts")
 
