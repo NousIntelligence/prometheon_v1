@@ -195,12 +195,18 @@ after the day's digests are sealed, so expect a burst rather than a trickle.
 - **No redirects.** The client does not follow them; a `301`/`302` is a
   delivery failure, and the attestation is simply re-sent next cycle.
 - **Retries** happen only on `429`, `502`, `503`, `504`, at most 3 of them,
-  honouring `Retry-After` when present. Every other non-2xx is reported and
-  retried on a later sweep, not hammered.
+  honouring `Retry-After` when present. Other 5xx responses are retried on a
+  later sweep; 4xx responses are not retried at all.
 - **Timeout** is the validator's `request_timeout_seconds` (default 30 s).
 
-**Token scope is an open question for the platform.** Validators send their
-operational token, which today carries `ingest:register` and `events:read`.
-This route is a write, so if it is gated behind a new scope
-(`events:attest`, say), that scope has to be added to existing tokens or
-every submission returns 403.
+**Token scope: `events:read`.** Same as `POST /events/parity-report`, on the
+same reasoning — an attestation cannot affect scoring, and validators already
+hold the scope. Existing operational tokens work unchanged.
+
+**Rejection is permanent; failure is not.** The platform verifies the
+signature and checks that the hotkey is a registered validator, refusing
+anything that fails with a 4xx. A 4xx other than `429` is treated as final:
+the attestation is marked rejected in the local log, never re-sent, and
+surfaced as a problem — it means this validator's signature or its
+registration is wrong, and neither fixes itself. `429`, any 5xx, and
+transport failures stay retryable.
