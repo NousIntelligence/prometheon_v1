@@ -41,6 +41,9 @@ status     = "active"
 #   snapshot — the pull-based predecessor, retained as an incident
 #              fallback only. Requires a snapshot:read:* token scope.
 weight_source = "events"
+# Must be the SAME file `ingest serve --db` writes. Relative paths resolve
+# against each process's working directory — use an absolute path whenever
+# either half runs as a systemd unit or a container.
 events_db = ".validator-state/events.sqlite"
 mode = "aggregate"
 activity_date = "latest"

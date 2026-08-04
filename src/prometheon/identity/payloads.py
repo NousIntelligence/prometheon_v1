@@ -51,7 +51,7 @@ from prometheon.security.canonical import domain_prefixed_bytes
 
 _HEX32_RE: Final[str] = r"^0x[0-9a-f]{64}$"
 _ISO8601_UTC_Z_RE: Final[str] = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$"
-_SS58_LOOSE_RE: Final[str] = r"^[1-9A-HJ-NP-Za-km-z]{46,48}$"
+SS58_LOOSE_RE: Final[str] = r"^[1-9A-HJ-NP-Za-km-z]{46,48}$"
 
 
 # ---------------------------------------------------------------------------
@@ -143,7 +143,7 @@ class IdentityVerifyPayload(PrometheonPayload):
     platform_account_id: str = Field(min_length=1)
     username_hash: str = Field(pattern=_HEX32_RE)
     email_hash: str = Field(pattern=_HEX32_RE)
-    hotkey_ss58: str = Field(pattern=_SS58_LOOSE_RE)
+    hotkey_ss58: str = Field(pattern=SS58_LOOSE_RE)
     nonce: str = Field(min_length=1)
     issued_at: str = Field(pattern=_ISO8601_UTC_Z_RE)
     expires_at: str = Field(pattern=_ISO8601_UTC_Z_RE)
@@ -171,8 +171,8 @@ class HotkeyRotationPayload(PrometheonPayload):
     platform_instance_id: str = Field(min_length=1)
     netuid: int = Field(ge=0)
     platform_account_id: str = Field(min_length=1)
-    old_hotkey_ss58: str = Field(pattern=_SS58_LOOSE_RE)
-    new_hotkey_ss58: str = Field(pattern=_SS58_LOOSE_RE)
+    old_hotkey_ss58: str = Field(pattern=SS58_LOOSE_RE)
+    new_hotkey_ss58: str = Field(pattern=SS58_LOOSE_RE)
     nonce: str = Field(min_length=1)
     issued_at: str = Field(pattern=_ISO8601_UTC_Z_RE)
     expires_at: str = Field(pattern=_ISO8601_UTC_Z_RE)
@@ -209,9 +209,9 @@ class ColdkeyRecoveryPayload(PrometheonPayload):
     platform_instance_id: str = Field(min_length=1)
     netuid: int = Field(ge=0)
     platform_account_id: str = Field(min_length=1)
-    old_hotkey_ss58: str = Field(pattern=_SS58_LOOSE_RE)
-    coldkey_ss58: str = Field(pattern=_SS58_LOOSE_RE)
-    new_hotkey_ss58: str = Field(pattern=_SS58_LOOSE_RE)
+    old_hotkey_ss58: str = Field(pattern=SS58_LOOSE_RE)
+    coldkey_ss58: str = Field(pattern=SS58_LOOSE_RE)
+    new_hotkey_ss58: str = Field(pattern=SS58_LOOSE_RE)
     nonce: str = Field(min_length=1)
     issued_at: str = Field(pattern=_ISO8601_UTC_Z_RE)
     expires_at: str = Field(pattern=_ISO8601_UTC_Z_RE)
@@ -241,8 +241,8 @@ class ManualRecoveryPayload(PrometheonPayload):
     platform_instance_id: str = Field(min_length=1)
     netuid: int = Field(ge=0)
     platform_account_id: str = Field(min_length=1)
-    old_hotkey_ss58: str = Field(pattern=_SS58_LOOSE_RE)
-    new_hotkey_ss58: str = Field(pattern=_SS58_LOOSE_RE)
+    old_hotkey_ss58: str = Field(pattern=SS58_LOOSE_RE)
+    new_hotkey_ss58: str = Field(pattern=SS58_LOOSE_RE)
     discord_handle_hash: str = Field(pattern=_HEX32_RE)
     nonce: str = Field(min_length=1)
     issued_at: str = Field(pattern=_ISO8601_UTC_Z_RE)
@@ -253,6 +253,7 @@ class ManualRecoveryPayload(PrometheonPayload):
 
 
 __all__ = [
+    "SS58_LOOSE_RE",
     "ColdkeyRecoveryPayload",
     "HotkeyRotationPayload",
     "IdentityVerifyPayload",

@@ -6,13 +6,36 @@
 # Build:
 #   docker build -f docker/Dockerfile.validator -t prometheon-validator:dev .
 #
-# Run:
+# A validator is TWO long-running processes sharing one event store:
+#   1. `ingest serve`  — receives the platform's signed pushes (public HTTPS)
+#   2. `validator run` — scores that store and submits weights
+#
+# Run them as two containers off this one image, sharing the state volume.
+# `docker/compose.yaml` does exactly that and is the shortest path:
+#
+#   docker compose -f docker/compose.yaml up
+#
+# Manually, the ingest half:
+#   docker run --rm -it -p 8541:8541 \
+#       -e PROMETHEON_VALIDATOR_API_TOKEN=<token> \
+#       -v ./prometheon-testnet.toml:/etc/prometheon/config.toml:ro \
+#       -v ./validator-state:/var/lib/prometheon/state \
+#       prometheon-validator:dev \
+#       ingest serve --config /etc/prometheon/config.toml \
+#                    --db /var/lib/prometheon/state/events.sqlite \
+#                    --host 0.0.0.0 --port 8541
+#
+# and the weight half:
 #   docker run --rm -it \
 #       -e PROMETHEON_VALIDATOR_API_TOKEN=<token> \
 #       -v ~/.bittensor:/home/prometheon/.bittensor:ro \
-#       -v ./prometheon-finney.toml:/etc/prometheon/config.toml:ro \
+#       -v ./prometheon-testnet.toml:/etc/prometheon/config.toml:ro \
 #       -v ./validator-state:/var/lib/prometheon/state \
 #       prometheon-validator:dev
+#
+# `events_db` in your config MUST be the absolute path inside the container
+# (/var/lib/prometheon/state/events.sqlite) so both halves open the same file.
+# The default is relative and would resolve against each container's CWD.
 #
 # The image runs as a non-root user (`prometheon`, UID 10001). Mount your
 # wallet directory and config file read-only; mount the state directory
@@ -81,6 +104,11 @@ RUN mkdir -p /etc/prometheon /var/lib/prometheon/state \
 
 USER prometheon
 WORKDIR /opt/prometheon
+
+# The ingest service listens here; front it with a TLS reverse proxy. The
+# weight half ignores this — it opens the store read-only and talks only to
+# the chain.
+EXPOSE 8541
 
 # tini reaps zombies and forwards signals cleanly.
 ENTRYPOINT ["/usr/bin/tini", "--", "prometheon"]

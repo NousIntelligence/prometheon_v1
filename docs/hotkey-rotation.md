@@ -54,13 +54,17 @@ On success the platform sets the role's active hotkey to the new one, marks the 
 
 Use when the old hotkey is unavailable but the coldkey is.
 
+Name the old hotkey by **address**, not by key file: it never signs a recovery,
+and requiring its file would defeat the purpose of the command. Read the address
+off the metagraph, the BitFan portal, or your own records.
+
 ```bash
 prometheon recover-hotkey \
     --recovery-method coldkey \
     --role           miner \
     --username       <user> --email <email> \
     --wallet-name    <wallet> \
-    --old-hotkey-name <old> \
+    --old-hotkey-ss58 <old_hotkey_address> \
     --new-hotkey-name <new> \
     --platform-base-url <url> --platform-instance-id <id> \
     --chain-network finney --netuid <netuid>
@@ -73,6 +77,9 @@ Required signatures: **coldkey** + **new hotkey**, both over the same canonical 
 - Token scope `identity:recover:<role>`.
 - Coldkey ownership of the old hotkey is established via current on-chain coldkey-hotkey association or a previously captured platform-side record.
 - The account is not in a 14-day recovery cooldown.
+
+If you do still hold the old key file, `--old-hotkey-name <file>` reads the
+address out of it instead. Pass one or the other, never both.
 
 On acceptance the request enters a **24-hour pending period**. The new hotkey is reserved but not yet active. During the pending period either the account owner or platform operators may cancel the recovery if suspicious behavior appears. After activation a 14-day recovery cooldown starts.
 
@@ -88,7 +95,7 @@ prometheon recover-hotkey \
     --role           miner \
     --username       <user> --email <email> \
     --wallet-name    <wallet> \
-    --old-hotkey-name <old> \
+    --old-hotkey-ss58 <old_hotkey_address> \
     --new-hotkey-name <new> \
     --discord-handle "<your-discord-handle>" \
     --platform-base-url <url> --platform-instance-id <id> \
@@ -123,7 +130,9 @@ Miner and validator cooldowns are tracked independently per account. Cooldowns a
 
 ## What Happens to Historical Scoring
 
-Both rotation and recovery change the **active** hotkey on the account; previous hotkeys are marked replaced, not deleted. Historical scoring continuity attaches to the platform account + role identity, not the hotkey, so a successful rotation or recovery does not reset your reward history.
+Both rotation and recovery change the **active** hotkey on the account; previous hotkeys are marked replaced, not deleted, and your platform-side history is untouched — the account, the Fan Group, and its members all carry over.
+
+**The on-chain reward path does not carry over, though: rotating costs you up to 14 days of eligibility.** Attribution resolves per day against the miner hotkey bound at `00:00Z`, so a rotation splits the rolling scoring window across two hotkeys — the old one holds the days before the switch, the new one the days after — and neither half may clear the 3-active-member threshold on its own. A miner with four active members can go from eligible to *not* eligible on **both** hotkeys until the window refills behind the new one. Rotate deliberately, and not on a day whose rewards you care about.
 
 ---
 

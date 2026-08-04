@@ -1,0 +1,53 @@
+# Prometheon ingest service — receives the platform's signed event pushes and
+# is the ONLY writer of the event store.
+#
+#   sudo cp deploy/systemd/prometheon-*.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now prometheon-ingest prometheon-validator
+#
+# Edit User/paths to match your host. Every path here is absolute on purpose:
+# both units must open the same event store file, and a relative path would
+# resolve against each unit's working directory.
+#
+# This unit needs no API token: `ingest serve` authenticates every push by the
+# platform's publisher signature, not by a token of yours. The runner unit does
+# need one, and reads it from an EnvironmentFile so it never appears in the
+# unit, in `systemctl show`, or in the process table:
+#
+#   sudo install -m 0600 /dev/null /etc/prometheon/validator.env
+#   printf 'PROMETHEON_VALIDATOR_API_TOKEN=%s\n' "<token>" \
+#       | sudo tee /etc/prometheon/validator.env >/dev/null
+
+[Unit]
+Description=Prometheon event ingest
+Documentation=https://github.com/NousIntelligence/prometheon_v1/blob/main/docs/decentralized-validation.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=prometheon
+Group=prometheon
+WorkingDirectory=/opt/prometheon
+# The venv binary directly, not `uv run`: ProtectSystem=strict makes /opt
+# read-only, so a unit that might re-sync the environment would fail. Run
+# `uv sync --no-dev` once at install time and this path exists.
+ExecStart=/opt/prometheon/.venv/bin/prometheon ingest serve \
+    --config /etc/prometheon/validator.toml \
+    --db /var/lib/prometheon/events.sqlite \
+    --host 127.0.0.1 \
+    --port 8541
+Restart=always
+RestartSec=5
+
+# Hardening. The store directory is the only writable path it needs.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+# read-only rather than true: the bittensor import path reads dotfiles under
+# the service user's home even though ingest never touches a wallet.
+ProtectHome=read-only
+ReadWritePaths=/var/lib/prometheon
+
+[Install]
+WantedBy=multi-user.target
