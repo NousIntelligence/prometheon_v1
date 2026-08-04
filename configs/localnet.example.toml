@@ -44,8 +44,9 @@ events_db = ".validator-state/events.sqlite"
 # keep the signature in attestations.ndjson beside the state file. See
 # docs/digest-attestation.md.
 attest_digests = true
-# Also POST each attestation to the platform. Enable once the platform
-# exposes POST /api/v1/prometheon/events/digest/attestation.
+# Off for localnet: a mock platform without the attestation endpoint answers
+# 404, which is a 4xx and therefore final — every attestation would be marked
+# permanently rejected. Attestations are still produced and stored locally.
 submit_attestations = false
 mode = "aggregate"
 activity_date = "latest"

@@ -9,6 +9,7 @@ import pytest
 from prometheon.identity.roles import ChainNetwork
 from prometheon.platform.endpoints import SnapshotMode
 from prometheon.validator.config import (
+    ValidatorRuntimeConfig,
     ConfigError,
     ValidatorConfig,
     load_validator_config,
@@ -133,3 +134,35 @@ class TestLoadValidatorConfig:
         )
         with pytest.raises(ConfigError, match="must contain at least one trusted key"):
             load_validator_config(_write(tmp_path, body))
+
+
+class TestAttestationDefaults:
+    """Both attestation flags are behavioural; pin them explicitly.
+
+    Signing is on by default because an attestation costs one signature a day
+    per family and is the only evidence a validator can produce about what it
+    was actually delivered. Delivery is on by default because an attestation
+    nobody else holds proves nothing to anyone else — it is beside every other
+    validator's statement that a disagreement becomes visible.
+    """
+
+    def test_signing_and_delivery_are_both_on_by_default(self) -> None:
+        fields = ValidatorRuntimeConfig.model_fields
+        assert fields["attest_digests"].default is True
+        assert fields["submit_attestations"].default is True
+
+    def test_shipped_network_configs_deliver(self) -> None:
+        for name in ("testnet", "finney"):
+            config = load_validator_config(Path(f"configs/{name}.example.toml"))
+            assert config.validator.attest_digests is True, name
+            assert config.validator.submit_attestations is True, name
+
+    def test_localnet_signs_but_does_not_deliver(self) -> None:
+        """A mock platform without the endpoint answers 404 — a final 4xx.
+
+        Every attestation would be marked permanently rejected, so the local
+        example signs and stores without delivering.
+        """
+        config = load_validator_config(Path("configs/localnet.example.toml"))
+        assert config.validator.attest_digests is True
+        assert config.validator.submit_attestations is False

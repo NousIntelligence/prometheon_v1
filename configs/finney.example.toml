@@ -45,9 +45,10 @@ events_db = ".validator-state/events.sqlite"
 # keep the signature in attestations.ndjson beside the state file. See
 # docs/digest-attestation.md.
 attest_digests = true
-# Also POST each attestation to the platform. Enable once the platform
-# exposes POST /api/v1/prometheon/events/digest/attestation.
-submit_attestations = false
+# Also POST each attestation to the platform, which stores it alongside
+# every other validator's. Live in production; leave on unless you have a
+# reason not to publish yours.
+submit_attestations = true
 mode = "aggregate"
 activity_date = "latest"
 submit_weights = true

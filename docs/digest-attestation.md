@@ -157,10 +157,12 @@ Configuration, in `[validator]`:
 | Key | Default | Effect |
 |---|---|---|
 | `attest_digests` | `true` | Produce and store attestations locally. |
-| `submit_attestations` | `false` | Also POST them to the platform. |
+| `submit_attestations` | `true` | Also POST them to the platform. Off in the localnet example, where there is no endpoint to deliver to. |
 
 Submission is delivery, not validity — an attestation is complete and
 verifiable the moment it is signed, and the local copy is kept either way.
+Delivering it is what puts your statement beside every other validator's,
+which is where a disagreement becomes visible to someone other than you.
 
 Manual use, for a one-off or after a backfill:
 

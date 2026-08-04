@@ -2,6 +2,8 @@
 
 **Source:** BitFan platform repo, `docs/specs/Subnet/fixtures/`
 **Pinned revision:** fixture release **r5** = BitFan commit `a0243b47`
+(r6 = `2cb40e23` is docs-only — its fixture tree is byte-identical to r5,
+verified by extracting both tarballs and diffing, so the pin does not move)
 **Vendored:** 2026-08-04 (supersedes r4 = `2a36285f`)
 
 r5 is the one release that is **additive rather than a regeneration**: every
