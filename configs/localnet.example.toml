@@ -40,6 +40,13 @@ weight_source = "events"
 # against each process's working directory — use an absolute path whenever
 # either half runs as a systemd unit or a container.
 events_db = ".validator-state/events.sqlite"
+# Countersign each sealed day digest that matches the local record set, and
+# keep the signature in attestations.ndjson beside the state file. See
+# docs/digest-attestation.md.
+attest_digests = true
+# Also POST each attestation to the platform. Enable once the platform
+# exposes POST /api/v1/prometheon/events/digest/attestation.
+submit_attestations = false
 mode = "aggregate"
 activity_date = "latest"
 submit_weights = true
