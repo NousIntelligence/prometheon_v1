@@ -43,6 +43,7 @@ from prometheon.events.attestation import (
 )
 from prometheon.events.backfill import (
     BackfillClient,
+    BackfillError,
     DigestNotFoundError,
     DigestNotSealedError,
 )
@@ -68,7 +69,14 @@ DEFAULT_LOOKBACK_DAYS: Final[int] = SCORING_WINDOW_DAYS
 #: nothing but time.
 DEFAULT_SWEEP_BUDGET_SECONDS: Final[float] = 30.0
 
-OutcomeStatus = Literal["signed", "submitted", "pending_seal", "mismatch", "error", "deferred"]
+OutcomeStatus = Literal[
+    "signed", "submitted", "pending_seal", "mismatch", "error", "deferred", "rejected"
+]
+
+#: Statuses an operator needs to see. ``rejected`` belongs here because the
+#: platform refusing an attestation means our signature or our registration
+#: is wrong — neither fixes itself, and neither is retryable.
+PROBLEM_STATUSES: Final[tuple[str, ...]] = ("mismatch", "error", "rejected")
 
 
 @dataclass(frozen=True)
@@ -112,11 +120,24 @@ def read_attested_keys(directory: Path | str = DEFAULT_STATE_DIR) -> set[str]:
     return keys
 
 
+def is_permanent_rejection(exc: BackfillError) -> bool:
+    """True when the platform refused this attestation for good.
+
+    A 4xx other than 429 means the body will never be accepted: the
+    signature does not verify, or the hotkey is not a registered validator.
+    Re-sending it every cycle would hammer an endpoint that has already
+    given its answer. 5xx, 429, and transport failures stay retryable.
+    """
+    code = exc.status_code
+    return code is not None and 400 <= code < 500 and code != 429
+
+
 def append_attestation(
     attestation: DigestAttestation,
     *,
     directory: Path | str = DEFAULT_STATE_DIR,
     delivered: bool = False,
+    rejected: bool = False,
 ) -> None:
     """Append one attestation to the log, creating the directory if needed.
 
@@ -127,7 +148,7 @@ def append_attestation(
     """
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
-    row = {**attestation.to_wire(), "delivered": delivered}
+    row = {**attestation.to_wire(), "delivered": delivered, "rejected": rejected}
     with attestations_path(directory).open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(row, sort_keys=True) + "\n")
 
@@ -157,7 +178,11 @@ def read_undelivered(directory: Path | str = DEFAULT_STATE_DIR) -> list[dict[str
             epoch = row.get("epoch_id")
             if isinstance(family, str) and isinstance(epoch, str):
                 latest[f"{family}/{epoch}"] = row
-    return [row for _, row in sorted(latest.items()) if row.get("delivered") is False]
+    return [
+        row
+        for _, row in sorted(latest.items())
+        if row.get("delivered") is False and row.get("rejected") is not True
+    ]
 
 
 def sealed_epochs_before(today: str, *, lookback_days: int = DEFAULT_LOOKBACK_DAYS) -> list[str]:
@@ -303,6 +328,16 @@ class DigestAttestor:
             return AttestationOutcome(key=key, status="signed")
         try:
             submit_attestation(self._client, attestation)
+        except BackfillError as exc:
+            if is_permanent_rejection(exc):
+                # Refused for good. Record it so no later sweep re-sends it,
+                # and report it: a rejection means our signature or our
+                # registration is wrong, and neither fixes itself.
+                append_attestation(
+                    attestation, directory=self._state_directory, delivered=False, rejected=True
+                )
+                return AttestationOutcome(key=key, status="rejected", detail=str(exc))
+            return AttestationOutcome(key=key, status="signed", detail=f"not delivered: {exc}")
         except Exception as exc:
             # The signature is already written locally, which is what makes
             # it evidence. Delivery can be retried; the statement stands
@@ -318,7 +353,7 @@ def summarize(outcomes: list[AttestationOutcome]) -> dict[str, Any]:
     for outcome in outcomes:
         counts[outcome.status] = counts.get(outcome.status, 0) + 1
     summary: dict[str, Any] = {"counts": counts}
-    problems = [o for o in outcomes if o.status in ("mismatch", "error")]
+    problems = [o for o in outcomes if o.status in PROBLEM_STATUSES]
     if problems:
         summary["problems"] = [
             {"key": o.key, "status": o.status, "detail": o.detail} for o in problems
@@ -335,10 +370,12 @@ __all__ = [
     "ATTESTATIONS_FILE_NAME",
     "DEFAULT_LOOKBACK_DAYS",
     "DEFAULT_SWEEP_BUDGET_SECONDS",
+    "PROBLEM_STATUSES",
     "AttestationOutcome",
     "DigestAttestor",
     "append_attestation",
     "attestations_path",
+    "is_permanent_rejection",
     "read_attested_keys",
     "read_undelivered",
     "sealed_epochs_before",
