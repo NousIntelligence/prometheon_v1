@@ -27,7 +27,7 @@ import os
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Final
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -35,6 +35,12 @@ from pydantic import BaseModel, ConfigDict, Field
 DEFAULT_STATE_DIR = Path(".validator-state")
 STATE_FILE_NAME = "state.json"
 EVENTS_FILE_NAME = "events.ndjson"
+
+# Bounds on the append-only runtime log. 32 MiB holds well over a month of
+# cycle events at a 15-minute cadence; five generations keep roughly half a
+# year of history available for forensics without unbounded growth.
+EVENTS_MAX_BYTES: Final[int] = 32 * 1024 * 1024
+EVENTS_KEEP_ROTATIONS: Final[int] = 5
 
 
 class ValidatorState(BaseModel):
@@ -152,13 +158,62 @@ def append_event(event: dict[str, Any], *, directory: Path | str = DEFAULT_STATE
             "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         }
     line = json.dumps(event, sort_keys=True) + "\n"
-    with events_path(directory).open("a", encoding="utf-8") as fh:
+    path = events_path(directory)
+    _rotate_if_oversized(path)
+    with path.open("a", encoding="utf-8") as fh:
         fh.write(line)
+
+
+def _rotate_if_oversized(
+    path: Path,
+    *,
+    max_bytes: int | None = None,
+    keep: int | None = None,
+) -> None:
+    """Roll the event log over once it passes ``max_bytes``.
+
+    The validator appends here every cycle, forever. Without a bound the
+    file is a slow disk-full incident on a host whose only job is to keep
+    submitting weights — and the failure would arrive as a write error in
+    the middle of a cycle rather than as anything diagnosable.
+
+    Rotation is by rename, so a reader tailing the live file keeps its
+    handle and simply stops seeing new lines; ``keep`` older generations
+    survive for post-incident forensics and the rest are dropped.
+
+    The bounds resolve from the module constants at call time rather than
+    as default arguments, so an operator (or a test) can retune them
+    without the values having been frozen at import.
+    """
+    max_bytes = EVENTS_MAX_BYTES if max_bytes is None else max_bytes
+    keep = EVENTS_KEEP_ROTATIONS if keep is None else keep
+
+    try:
+        if path.stat().st_size < max_bytes:
+            return
+    except FileNotFoundError:
+        return
+
+    # Rotation is best-effort: losing a log line is acceptable, failing a
+    # scoring cycle because a rotation slot was occupied or another process
+    # rotated first is not. Any OS error here leaves the live file in place
+    # and the append proceeds.
+    with contextlib.suppress(OSError):
+        oldest = path.with_suffix(path.suffix + f".{keep}")
+        if oldest.exists():
+            oldest.unlink()
+        for index in range(keep - 1, 0, -1):
+            source = path.with_suffix(path.suffix + f".{index}")
+            if source.exists():
+                source.rename(path.with_suffix(path.suffix + f".{index + 1}"))
+        path.rename(path.with_suffix(path.suffix + ".1"))
 
 
 __all__ = [
     "DEFAULT_STATE_DIR",
     "EVENTS_FILE_NAME",
+    "EVENTS_KEEP_ROTATIONS",
+    "EVENTS_MAX_BYTES",
     "STATE_FILE_NAME",
     "ValidatorState",
     "append_event",
