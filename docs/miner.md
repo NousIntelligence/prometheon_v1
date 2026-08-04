@@ -24,8 +24,10 @@ Install the CLI:
 git clone https://github.com/NousIntelligence/prometheon_v1
 cd prometheon_v1
 uv sync
-prometheon --version
+uv run prometheon --version
 ```
+
+Every command below assumes `uv run` in front of `prometheon`, which runs it inside the project's environment. If you would rather drop the prefix, `source .venv/bin/activate` once and use `prometheon …` directly.
 
 ---
 
@@ -53,7 +55,7 @@ Once you lead a Fan Group, register a Bittensor hotkey on the subnet (`btcli sub
 ```bash
 export PROMETHEON_MINER_API_TOKEN="<bootstrap token from BitFan portal>"
 
-prometheon verify-miner \
+uv run prometheon verify-miner \
     --username           <bitfan_username> \
     --email              <bitfan_email> \
     --wallet-name        <coldkey_directory_name> \
@@ -88,10 +90,15 @@ You do **not** need to keep this process running; rewards do not depend on it.
 
 ## Hotkey Rotation and Recovery
 
-If your hotkey is compromised or you want to rotate keys:
+If your hotkey is compromised or you want to rotate keys. Note the token
+variable differs from the one `verify-miner` uses:
 
 ```bash
-prometheon rotate-hotkey --role miner --wallet-name <wallet> \
+export PROMETHEON_API_TOKEN="<operational token with the rotate scope>"
+```
+
+```bash
+uv run prometheon rotate-hotkey --role miner --wallet-name <wallet> \
     --old-hotkey-name <old> --new-hotkey-name <new> \
     --username <u> --email <e> \
     --platform-base-url https://subnet-api.bitfan.ai \
@@ -125,10 +132,10 @@ Rewards flow exclusively from platform-scored activity of users in your Fan Grou
 
 ## Troubleshooting
 
-The CLI prints a structured block for every error: the wire code on the top line, a one-line headline, and a Remediation paragraph. Add `--verbose` (anywhere on the command line) for a sanitised diagnostic trailer that captures the typed `details` payload, HTTP status, and other context useful for filing an issue:
+The CLI prints a structured block for every error: the wire code on the top line, a one-line headline, and a Remediation paragraph. Add `--verbose` **before** the subcommand (it is a group-level option — `prometheon status --verbose` is rejected) for a sanitised diagnostic trailer that captures the typed `details` payload, HTTP status, and other context useful for filing an issue:
 
 ```bash
-prometheon --verbose verify-miner --username alice --email alice@example.com ...
+uv run prometheon --verbose verify-miner --username alice --email alice@example.com ...
 ```
 
 The renderer never echoes API tokens or other credential-shaped values to the trailer — see [`security.md` § API Tokens](./security.md#api-tokens) for the full redaction list.

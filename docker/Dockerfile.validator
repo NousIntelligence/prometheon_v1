@@ -10,14 +10,29 @@
 #   1. `ingest serve`  — receives the platform's signed pushes (public HTTPS)
 #   2. `validator run` — scores that store and submits weights
 #
-# Run them as two containers off this one image, sharing the state volume.
-# `docker/compose.yaml` does exactly that and is the shortest path:
+# Run them as two containers off this one image. `docker/compose.yaml` does
+# exactly that, handles the UID and mount details below, and is the shortest
+# path:
 #
-#   docker compose -f docker/compose.yaml up
+#   export PROMETHEON_UID=$(id -u) PROMETHEON_GID=$(id -g)
+#   docker compose -f docker/compose.yaml up --build
 #
-# Manually, the ingest half:
-#   docker run --rm -it -p 8541:8541 \
-#       -e PROMETHEON_VALIDATOR_API_TOKEN=<token> \
+# Running it by hand needs three things right, all of which fail hard if wrong:
+#
+#   --user $(id -u):$(id -g)   Your wallet keyfiles are mode 0600 owned by you,
+#                              and a bind-mounted state directory is yours too.
+#                              The image's own user (UID 10001) can read and
+#                              write neither.
+#   -e HOME=/home/prometheon   Your UID has no passwd entry in the image, so
+#                              HOME is otherwise unset and the wallet is not
+#                              found.
+#   wallet mounted read-write  `import bittensor` unconditionally creates
+#                              ~/.bittensor/{miners,wallets}; with `:ro` it dies
+#                              at import with Errno 30. Signing never writes.
+#
+# The ingest half:
+#   docker run --rm -it -p 127.0.0.1:8541:8541 \
+#       --user $(id -u):$(id -g) \
 #       -v ./prometheon-testnet.toml:/etc/prometheon/config.toml:ro \
 #       -v ./validator-state:/var/lib/prometheon/state \
 #       prometheon-validator:dev \
@@ -27,8 +42,9 @@
 #
 # and the weight half:
 #   docker run --rm -it \
+#       --user $(id -u):$(id -g) -e HOME=/home/prometheon \
 #       -e PROMETHEON_VALIDATOR_API_TOKEN=<token> \
-#       -v ~/.bittensor:/home/prometheon/.bittensor:ro \
+#       -v ~/.bittensor:/home/prometheon/.bittensor \
 #       -v ./prometheon-testnet.toml:/etc/prometheon/config.toml:ro \
 #       -v ./validator-state:/var/lib/prometheon/state \
 #       prometheon-validator:dev
@@ -37,10 +53,9 @@
 # (/var/lib/prometheon/state/events.sqlite) so both halves open the same file.
 # The default is relative and would resolve against each container's CWD.
 #
-# The image runs as a non-root user (`prometheon`, UID 10001). Mount your
-# wallet directory and config file read-only; mount the state directory
-# writable so the runner can persist `state.json` and append the NDJSON
-# event log.
+# The image defines a non-root user (`prometheon`, UID 10001) so it never runs
+# as root by default; override it with `--user` as above when you bind-mount
+# host-owned files.
 
 # --- Builder stage -----------------------------------------------------------
 FROM python:3.11-slim-bookworm AS builder

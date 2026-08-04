@@ -16,7 +16,7 @@ This guide walks through the full validator setup, configuration, and operationa
 | BitFan platform account | Sign up at the BitFan platform with a stable username and verified email. |
 | Bootstrap token (first verify only) | Obtained from the [BitFan portal](https://bitfanweb-production-658c.up.railway.app/me/prometheon) — click *Get bootstrap token* with role *validator*. The token is one-time, scoped to `identity:verify:validator`, expires after one hour, and is auto-revoked the moment `verify-validator` succeeds. Export it as `PROMETHEON_VALIDATOR_API_TOKEN`. |
 | Operational validator token | Issued by the BitFan portal once verification succeeds. The live event path needs `ingest:register` (to register your ingest endpoint) and `events:read` (backfill, day digests, parity reports). The `snapshot:read:aggregate` / `:detailed` scopes are needed only if you fall back to the snapshot weight source. Same env var name as the bootstrap token; re-export the new token after first verify. |
-| Linux host | The runner is a single Python process; CPU and disk footprint are minimal. |
+| Linux host | Two long-running processes (`ingest serve` + `validator run`) and a public HTTPS endpoint for the first of them. CPU and disk footprint are minimal. |
 
 Install:
 
@@ -25,6 +25,10 @@ git clone https://github.com/NousIntelligence/prometheon_v1
 cd prometheon_v1
 uv sync
 ```
+
+Every command below assumes `uv run` in front of `prometheon`, which runs it
+inside the project's environment. If you would rather drop the prefix,
+`source .venv/bin/activate` once and use `prometheon …` directly.
 
 ---
 
@@ -35,7 +39,7 @@ The first call uses the one-time bootstrap token from the BitFan portal:
 ```bash
 export PROMETHEON_VALIDATOR_API_TOKEN="<bootstrap token from BitFan portal>"
 
-prometheon verify-validator \
+uv run prometheon verify-validator \
     --username             <bitfan_username> \
     --email                <bitfan_email> \
     --wallet-name          <coldkey_directory_name> \
@@ -46,7 +50,7 @@ prometheon verify-validator \
     --netuid               <netuid>
 ```
 
-On success the platform sets `validator_verified = true` for your account, binds your hotkey, and revokes the bootstrap token — all in the same transaction. After verify completes, return to the BitFan portal to issue your operational validator token (with `snapshot:read:aggregate` or `:detailed` scope) and re-export it under the same env var for the `validator run` step.
+On success the platform sets `validator_verified = true` for your account, binds your hotkey, and revokes the bootstrap token — all in the same transaction. After verify completes, return to the BitFan portal to issue your operational validator token and re-export it under the same env var. On the live event path that token needs `ingest:register` and `events:read` — **not** the `snapshot:read:*` scopes, which matter only if you deliberately fall back to the snapshot weight source (see the prerequisites table above).
 
 ---
 
@@ -143,7 +147,7 @@ The token must carry the matching `snapshot:read:<aggregate|detailed>` scope; th
 
 ```bash
 export PROMETHEON_VALIDATOR_API_TOKEN="<token>"
-prometheon validator run --config ~/prometheon-validator.toml
+uv run prometheon validator run --config ~/prometheon-validator.toml
 ```
 
 The runner loops forever, performing one cycle every
@@ -159,8 +163,8 @@ The runner loops forever, performing one cycle every
 For one-shot or scheduled execution:
 
 ```bash
-prometheon validator run --config <path> --once
-prometheon validator run --config <path> --cycles 5
+uv run prometheon validator run --config <path> --once
+uv run prometheon validator run --config <path> --cycles 5
 ```
 
 For dry-run (no chain submission):
@@ -180,7 +184,7 @@ For dry-run (no chain submission):
 The fastest local check:
 
 ```bash
-prometheon status
+uv run prometheon status
 ```
 
 prints the persisted state file. On the event path that includes which inputs produced the submitted vector — `weight_source`, the scored epoch, the `scores_hash`, the engine version and the four per-family stream cursors — alongside the last block submitted, last extrinsic hash and last error. Exit code 0 = state present; exit code 2 = no cycle has completed yet.
@@ -205,7 +209,7 @@ Event types emitted:
 The CLI prints a structured block on every failure: the wire code on the top line, a one-line headline, and a Remediation paragraph. Add `--verbose` for a sanitised diagnostic trailer that captures the typed `details` payload, HTTP status, and exception class:
 
 ```bash
-prometheon --verbose validator run --config ~/prometheon-validator.toml --once
+uv run prometheon --verbose validator run --config ~/prometheon-validator.toml --once
 ```
 
 For long-running validators, the same renderer block is emitted to stderr per failed cycle, prefixed with the cycle index — `tail -F` on stderr captures it in real time. The renderer redacts credential-shape values from the trailer (see [`security.md` § API Tokens](./security.md#api-tokens)).
@@ -244,7 +248,7 @@ These are not platform errors; they are conditions the validator refuses to star
 
 | Code | Cause | Resolution |
 |---|---|---|
-| `validator.event_weight_source` | The local event store is missing or unreadable, so the live path cannot score. | Start `prometheon ingest serve` and confirm `events_db` in your config points at the same file. Raised **before any chain call**, so nothing is submitted from partial inputs. |
+| `validator.event_weight_source` | The local event store is missing or unreadable, so the live path cannot score. | Start `prometheon ingest serve` and confirm `events_db` in your config points at the same file. Raised **before any weight submission** (after the metagraph and hyperparameter reads), so nothing reaches the chain from partial inputs. |
 | `chain.commit_reveal_enabled` | The subnet has commit-reveal turned on at the chain level. Phase 1 does not support commit-reveal. | If you do not own the subnet, wait until the subnet owner disables commit-reveal, or contact them. The validator refuses to submit until then. If you **do** own the subnet, see [Subnet-owner resolution](#subnet-owner-resolution-disable-commit-reveal) below. |
 | `chain.weights_version_mismatch` | The configured `[chain] version_key` differs from the chain's `weights_version` hyperparameter. | Update `version_key` in the config to the value the subnet owner has currently set. |
 | `chain.mechid_missing` | The installed `bittensor` SDK lacks `mechid` support and the config does not enable the legacy override. | Upgrade the `bittensor` package. The legacy override (`allow_legacy_sdk_without_mechid = true`) is only acceptable on `local`. |
@@ -309,12 +313,32 @@ not in a terminal.
 **systemd** — unit files are in [`deploy/systemd/`](../deploy/systemd/):
 
 ```bash
+# 1. Service user and directories. The units run as `prometheon`; nothing in
+#    this sequence works until that account exists.
+sudo useradd --system --create-home --home-dir /home/prometheon \
+    --shell /usr/sbin/nologin prometheon
 sudo install -d -m 0755 -o prometheon -g prometheon /var/lib/prometheon
 sudo install -d -m 0750 /etc/prometheon
+
+# 2. Deploy the code where the units expect it (/opt/prometheon/.venv/bin).
+sudo git clone https://github.com/NousIntelligence/prometheon_v1 /opt/prometheon
+sudo chown -R prometheon:prometheon /opt/prometheon
+sudo -u prometheon sh -c 'cd /opt/prometheon && uv sync --no-dev'
+
+# 3. Config and token. The token is the runner's only secret; mode 0600 keeps
+#    it out of `systemctl show` and the process table.
+sudo install -m 0640 -o root -g prometheon \
+    ~/prometheon-validator.toml /etc/prometheon/validator.toml
 sudo install -m 0600 /dev/null /etc/prometheon/validator.env
 printf 'PROMETHEON_VALIDATOR_API_TOKEN=%s\n' "<token>" \
     | sudo tee /etc/prometheon/validator.env >/dev/null
-sudo cp deploy/systemd/prometheon-*.service /etc/systemd/system/
+
+# 4. The wallet must be readable by the service user, not by you.
+sudo cp -r ~/.bittensor /home/prometheon/.bittensor
+sudo chown -R prometheon:prometheon /home/prometheon/.bittensor
+
+# 5. Install and start both units.
+sudo cp /opt/prometheon/deploy/systemd/prometheon-*.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now prometheon-ingest prometheon-validator
 journalctl -u prometheon-validator -f
