@@ -28,6 +28,7 @@ hand (or from cron) until the automation glue lands.
 from __future__ import annotations
 
 import json
+import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -454,21 +455,41 @@ def prune(db_path: Path, keep_epochs: int, keep_nonce_days: int, dry_run: bool) 
             f"--keep-epochs {keep_epochs} is below the {RETENTION_EPOCHS}-epoch retention "
             "floor; the scoring window would lose days it still needs"
         )
+    if keep_nonce_days < 1:
+        # Nonces are the replay defence. Pruning inside the ±300 s replay
+        # window would let a captured push batch be accepted twice.
+        raise click.ClickException(
+            f"--keep-nonce-days {keep_nonce_days} is below 1; pruning inside the "
+            "replay window would reopen the replay hole the nonce table exists to close"
+        )
 
     today = datetime.now(timezone.utc)
     before_epoch = (today - timedelta(days=keep_epochs)).strftime("%Y-%m-%d")
     before_nonce = (today - timedelta(days=keep_nonce_days)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    with EventStore(db_path) as store:
-        if dry_run:
+    if dry_run:
+        # Read-only so a command advertising "delete nothing" cannot even
+        # run the schema DDL the read-write constructor performs.
+        with EventStore(db_path, read_only=True) as store:
             stale = store.count_prunable(before_epoch=before_epoch, before_nonce=before_nonce)
-            echo_info(
-                f"would prune {stale.records} window-family records older than {before_epoch} "
-                f"and {stale.nonces} nonces older than {before_nonce}"
-            )
-            return
-        records = store.prune_window_families(before_epoch=before_epoch)
-        nonces = store.prune_nonces(before=before_nonce)
+        echo_info(
+            f"would prune {stale.records} window-family records older than {before_epoch} "
+            f"and {stale.nonces} nonces older than {before_nonce}"
+        )
+        return
+
+    try:
+        with EventStore(db_path) as store:
+            records = store.prune_window_families(before_epoch=before_epoch)
+            nonces = store.prune_nonces(before=before_nonce)
+    except sqlite3.OperationalError as exc:
+        # Expected when a push batch holds the write lock longer than the
+        # busy timeout. A cron-run janitor must say so plainly and exit,
+        # not print a traceback.
+        raise click.ClickException(
+            f"could not prune {db_path}: {exc}. The ingest service holds the write "
+            "lock during a push; re-run shortly."
+        ) from exc
 
     echo_success(
         f"pruned {records} window-family records older than {before_epoch} "

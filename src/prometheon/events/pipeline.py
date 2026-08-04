@@ -65,6 +65,11 @@ ENGINE_VERSION: Final[str] = "scoring-port-r4/2a36285f"
 
 _EPOCH_RE: Final[re.Pattern[str]] = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
+# Contract 6.4: verdicts_complete(D) is sequenced at ~00:05 UTC on D+1, and
+# an absence only becomes actionable ">2h past expected".
+MARKER_SEAL_MINUTE: Final[int] = 5
+MARKER_GRACE_HOURS: Final[int] = 2
+
 
 class MissingVerdictsError(RuntimeError):
     """``verdicts_complete`` for the scoring epoch has not arrived."""
@@ -162,6 +167,20 @@ def current_epoch(now: datetime | None = None) -> str:
     return moment.strftime("%Y-%m-%d")
 
 
+def _marker_overdue(epoch: str, now: datetime) -> bool:
+    """Is ``epoch``'s ``verdicts_complete`` marker late enough to report?
+
+    Contract §6.4: the platform sequences the marker for epoch D at
+    ~00:05 UTC on D+1, and an absence is only actionable ">2h past
+    expected". Anything earlier is the normal gap between a day closing
+    and its seal being written.
+    """
+    expected = datetime.strptime(epoch, "%Y-%m-%d").replace(tzinfo=timezone.utc) + timedelta(
+        days=1, minutes=MARKER_SEAL_MINUTE
+    )
+    return now > expected + timedelta(hours=MARKER_GRACE_HOURS)
+
+
 def parse_epoch(value: str) -> str:
     """Validate a ``YYYY-MM-DD`` epoch id and return it unchanged.
 
@@ -192,6 +211,7 @@ def score_event_stream(
     scoring_date: str,
     allow_missing_marker: bool = False,
     live: bool = False,
+    now: datetime | None = None,
 ) -> EventStreamScores:
     """Recompute miner records for the window ending ``scoring_date``.
 
@@ -258,10 +278,24 @@ def score_event_stream(
     # so a closed day without one means the exclusion stream stalled — and
     # with it every anti-fraud verdict. Left unreported, scores silently
     # drift to full weight and nothing on any surface says why.
+    #
+    # A day is only "missing" once it is genuinely overdue. The contract
+    # (§6.4) seals D at ~00:05 UTC on D+1 and gives a 2h grace before the
+    # absence is worth acting on; without that window this fires at every
+    # midnight rollover, when yesterday has closed but has not been sealed
+    # yet — a guaranteed daily false alarm, which is how alarms get ignored.
+    # Both conditions, not either: the live exclusion states the intent
+    # (the scored day is in progress) and the overdue check handles the
+    # rollover window. In normal use they coincide — scoring_date is today
+    # and today is never overdue — but a caller scoring an explicit past
+    # date in live mode should not be told its own marker is missing.
+    moment = now or datetime.now(timezone.utc)
     missing_markers = tuple(
         epoch
         for epoch in window_epochs(scoring_date)
-        if epoch not in markers and not (live and epoch == scoring_date)
+        if epoch not in markers
+        and not (live and epoch == scoring_date)
+        and _marker_overdue(epoch, moment)
     )
 
     verdict_count_mismatch = {
@@ -342,6 +376,8 @@ def diff_miner_records(
 
 __all__ = [
     "ENGINE_VERSION",
+    "MARKER_GRACE_HOURS",
+    "MARKER_SEAL_MINUTE",
     "SCORING_WINDOW_DAYS",
     "EventStreamScores",
     "MissingVerdictsError",

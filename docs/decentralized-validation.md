@@ -200,9 +200,21 @@ epochs (the scoring window needs 21); `identity`/`group` are state families
 and keep full history. Pruning never moves the stream cursor, so a pruned
 store still knows where it is in each stream.
 
-Nothing prunes automatically yet — the store implements the policy but no
-scheduler calls it, so expect the database and the replay-nonce table to
-grow until the automation glue lands. That costs disk, never correctness.
+Pruning is **operator-run**, not automatic:
+
+```bash
+uv run prometheon ingest prune --db .validator-state/events.sqlite --dry-run
+uv run prometheon ingest prune --db .validator-state/events.sqlite
+```
+
+`--dry-run` reports what would go before anything is deleted. The command
+refuses `--keep-epochs` below 23 so it cannot take days the scoring window
+still needs, and it never moves a stream cursor. It is safe to run from cron
+against a store the ingest service is writing — if a push holds the write
+lock it says so and exits rather than printing a traceback.
+
+Nothing schedules it, so put it in cron; until you do, the database and the
+replay-nonce table grow. That costs disk, never correctness.
 Note the interaction to come: `check-day` compares against what is stored,
 so once pruning is active a day older than the retention window will read
 as incomplete. Keep completeness checks inside the window.
