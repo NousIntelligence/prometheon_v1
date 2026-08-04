@@ -138,7 +138,10 @@ When the platform rotates its Ed25519 signing key:
 
 1. The platform team announces the new `platform_key_id`, public key, and validity window in advance.
 2. Add the new entry to `[platform.snapshot_keys.*]` in your config **before** the platform switches to it. Multiple active keys may coexist.
-3. The validator automatically picks up the new key on the next config reload (or on the next restart).
+3. Restart **both** processes. The runtime does not reload config while running, and
+   `ingest serve` and `validator run` read the same `[platform.snapshot_keys]` table.
+   Restarting only the runner leaves ingest rejecting every push signed by the new key,
+   so the store quietly stops advancing while the runner keeps scoring a stale window.
 4. The old key remains trusted until the platform-side retention window expires; its config entry can then be removed (or marked `status = "revoked"`).
 
 If a key compromise is announced, mark the affected `platform_key_id` as `status = "revoked"` immediately — revoked keys are rejected regardless of the validity window.

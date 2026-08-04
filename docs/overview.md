@@ -68,6 +68,7 @@ Concretely, this means the target netuid must have the chain hyperparameter `com
 |---|---|---|
 | Security primitives | `src/prometheon/security/` | RFC 8785 JCS, hashing, SR25519 + Ed25519 signature wrappers, request nonces. |
 | Identity protocol | `src/prometheon/identity/` | Canonical payload models, envelope verifiers for verify / rotate / recover flows. |
+| Event stream | `src/prometheon/events/` | Signed-record parsing, the `ingest serve` push endpoint, the SQLite event store, rolling-window recomputation (`SCORING_WINDOW_DAYS = 14`), backfill, day-digest attestation, parity reports. **This is the live weight path.** |
 | BitFan client | `src/prometheon/platform/` | Wire schemas, signed snapshot verification, streaming detailed-mode accumulator, typed HTTP client. |
 | Phase 1 engine | `src/prometheon/mechanisms/phase1_growth/` | Pure deterministic engine: eligibility, ranking, burn cases, integer allocation, `WeightPlan`. |
 | Chain adapter | `src/prometheon/chain/` | Wallet loading, subtensor connection, metagraph view, UID resolution, u16 conversion, weight submission. |

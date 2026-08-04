@@ -72,7 +72,7 @@ The CLI never re-normalises your username or email locally — the platform retu
 
 If the platform reports an error (`AUTH_INVALID_TOKEN`, `NONCE_EXPIRED`, `HOTKEY_ALREADY_LINKED`, or a "must lead a Fan Group" rejection, etc.), the CLI surfaces the error code and a clear message. See [`security.md`](./security.md) for the full catalog.
 
-Once verified, your Fan Group's scored activity flows into the daily snapshot and the reward path is active. That is the entire mechanism.
+Once verified, your Fan Group's activity flows into the platform's signed event streams, which are pushed to every validator and rescored over the rolling 14-day window each cycle. The reward path is active from that point. That is the entire mechanism.
 
 ---
 
@@ -126,7 +126,7 @@ and the manual 2FA + Ops Console flow for when the coldkey is gone too.
 - Creating accounts that fail BitFan anti-farming checks (their scores will be zeroed).
 - Running `python neurons/miner.py` continuously.
 
-Rewards flow exclusively from platform-scored activity of users in your Fan Group.
+Rewards flow exclusively from the activity of users in your Fan Group. The platform publishes that activity as signed events; every validator scores it independently from the open formula, and platform anti-fraud verdicts can down-weight or zero a day.
 
 ---
 

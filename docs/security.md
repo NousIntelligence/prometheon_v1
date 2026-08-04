@@ -10,8 +10,8 @@ The full cryptographic specification is the source of truth — what follows is 
 
 | Algorithm | Used by | Purpose |
 |---|---|---|
-| **SR25519** (Bittensor) | Miners, validators | Hotkey and coldkey signatures over identity, rotation, recovery, and API request payloads. |
-| **Ed25519** | BitFan platform | Snapshot signatures over daily snapshot envelopes and detailed-mode manifests. |
+| **SR25519** (Bittensor) | Miners, validators | Hotkey and coldkey signatures over identity, rotation, recovery, and API request payloads; the validator hotkey also countersigns sealed day digests under `PROMETHEON_DIGEST_ATTESTATION_V1`. |
+| **Ed25519** | BitFan platform | Push-envelope signatures on the live event stream (`PROMETHEON_INGEST_PUSH_V1`) and sealed day-digest signatures (`PROMETHEON_DAY_DIGEST_V1`); on the snapshot fallback, signatures over daily snapshot envelopes and detailed-mode manifests. |
 
 These two trust roles are intentionally separate. A Bittensor hotkey can never be used to sign a snapshot; a platform Ed25519 key can never be used to sign an identity payload. The two algorithms make accidental misuse cryptographically impossible.
 
@@ -150,6 +150,9 @@ PROMETHEON_INGEST_PUSH_V1
 PROMETHEON_EVENT_RECORD_V1
 PROMETHEON_EVENT_V1
 PROMETHEON_DAY_DIGEST_V1
+
+# Day-digest attestation (validator countersignature)
+PROMETHEON_DIGEST_ATTESTATION_V1
 ```
 
 Cross-domain reuse is rejected by both sides. The platform's `signature.domain_mismatch` payload includes `details.expected_domain` so the operator can see which domain the platform expected for the endpoint that was called.
@@ -178,12 +181,19 @@ Every signed envelope carries the intended endpoint path inside the canonical pa
 
 ## Cross-Environment Replay Defense
 
-Every signed object carries **both**:
+Every signed **identity, API-request, and snapshot** object carries **both**:
 
 ```text
 chain_network         ∈ { "local", "test", "finney" }
 platform_instance_id  stable string, e.g. "bitfan-staging" / "bitfan-production"
 ```
+
+Event-stream artifacts are bound differently, and it matters when you go
+looking for the pair: it rides on the **ingest push envelope** (checked
+before the replay defences, rejected as `environment_mismatch`) and on the
+**read-API request headers**. It is not inside a signed day digest, a
+validator attestation, or an event record — those are bound by the key that
+signed them and by the epoch they name.
 
 The validator (and the platform) reject any object whose pair does not match the configured environment. A staging-signed snapshot replayed against a production validator is rejected before any signature or hash check. A finney-signed identity payload replayed against a testnet validator is rejected for the same reason.
 
@@ -253,7 +263,7 @@ A stderr warning is emitted the first time a previously-unseen key is dropped (p
 | API token theft | Snapshot endpoints require both the token AND a fresh hotkey signature; the token alone is insufficient. |
 | Hotkey theft | Platform-state mutation requires the API token AND the hotkey signature AND a valid nonce; the hotkey alone is insufficient. |
 | Snapshot tampering | Ed25519 signature + `records_hash` + (detailed) per-page hashes. Any byte change invalidates the chain. |
-| Cross-protocol reuse | Twelve distinct signing domains, double-bound (external prefix + embedded field). |
+| Cross-protocol reuse | Thirteen distinct signing domains, double-bound (external prefix + embedded field). |
 | Floating-point divergence | All in-engine arithmetic is integer-only; chain-boundary u16 conversion is also integer largest-remainder. |
 | Commit-reveal silent fallback | Detection at startup; fail closed if commit-reveal is enabled on the chain. |
 | Missing `mechid` silent fallback | Detection at startup; fail closed outside `local` development. |

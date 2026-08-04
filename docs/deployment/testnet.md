@@ -121,7 +121,9 @@ The runner persists state to `.validator-state/` in the current working director
 
 ## What Testnet Lets You Validate
 
-- End-to-end snapshot fetch and verification against the real staging platform.
+- End-to-end event ingest, backfill, and local recomputation against the real staging
+  platform, including day-digest verification (`ingest check-day`) and attestation.
+- Snapshot fetch and verification — only under the `weight_source = "snapshot"` fallback.
 - Real metagraph synchronisation against the testnet chain.
 - Real `set_weights` extrinsic submission on testnet.
 - Cross-team interop on the shared fixture suite (the platform-side fixtures should now match your subnet-side fixtures byte-for-byte).
