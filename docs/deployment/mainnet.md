@@ -71,12 +71,32 @@ are in [`deploy/systemd/`](../../deploy/systemd/) — copy them, adjust `User`
 and the paths, and enable both:
 
 ```bash
+# 1. Service user and directories. The units run as `prometheon`; nothing in
+#    this sequence works until that account exists.
+sudo useradd --system --create-home --home-dir /home/prometheon \
+    --shell /usr/sbin/nologin prometheon
 sudo install -d -m 0755 -o prometheon -g prometheon /var/lib/prometheon
 sudo install -d -m 0750 /etc/prometheon
+
+# 2. Deploy the code where the units expect it (/opt/prometheon/.venv/bin).
+sudo git clone https://github.com/NousIntelligence/prometheon_v1 /opt/prometheon
+sudo chown -R prometheon:prometheon /opt/prometheon
+sudo -u prometheon sh -c 'cd /opt/prometheon && uv sync --no-dev'
+
+# 3. Config and token. The token is the runner's only secret; mode 0600 keeps
+#    it out of `systemctl show` and the process table.
+sudo install -m 0640 -o root -g prometheon \
+    ~/prometheon-finney.toml /etc/prometheon/validator.toml
 sudo install -m 0600 /dev/null /etc/prometheon/validator.env
 printf 'PROMETHEON_VALIDATOR_API_TOKEN=%s\n' "<token>" \
     | sudo tee /etc/prometheon/validator.env >/dev/null
-sudo cp deploy/systemd/prometheon-*.service /etc/systemd/system/
+
+# 4. The wallet must be readable by the service user, not by you.
+sudo cp -r ~/.bittensor /home/prometheon/.bittensor
+sudo chown -R prometheon:prometheon /home/prometheon/.bittensor
+
+# 5. Install and start both units.
+sudo cp /opt/prometheon/deploy/systemd/prometheon-*.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now prometheon-ingest prometheon-validator
 ```

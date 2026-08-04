@@ -4,9 +4,13 @@
 # Install alongside prometheon-ingest.service; see the comments there.
 #
 # `events_db` in /etc/prometheon/validator.toml must be the absolute path the
-# ingest unit writes (/var/lib/prometheon/events.sqlite below). The runner
-# needs read access to the wallet, so ProtectHome is off and the wallet
-# directory is granted explicitly.
+# ingest unit writes (/var/lib/prometheon/events.sqlite below).
+#
+# The wallet must belong to this service user — copy it, do not point at the
+# operator's home:
+#
+#   sudo cp -r ~/.bittensor /home/prometheon/.bittensor
+#   sudo chown -R prometheon:prometheon /home/prometheon/.bittensor
 
 [Unit]
 Description=Prometheon validator weight runner
@@ -34,8 +38,11 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ReadWritePaths=/var/lib/prometheon
-# Wallet lives under the service user's home; read-only is enough to sign.
-ReadOnlyPaths=/home/prometheon/.bittensor
+# Signing itself never writes, but `import bittensor` unconditionally creates
+# ~/.bittensor/{miners,wallets}. Read-only here means the process dies at
+# import with "Read-only file system" whenever one of those is absent, so the
+# wallet directory — and only that directory — is writable.
+ReadWritePaths=/home/prometheon/.bittensor
 
 [Install]
 WantedBy=multi-user.target

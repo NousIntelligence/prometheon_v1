@@ -158,13 +158,14 @@ After successful verification your Fan Group's scored activity flows into the ev
 
 The validator is config-driven: every chain, wallet, and platform setting lives in a TOML file, and `prometheon validator run` only takes `--config`. Pre-pinned values for testnet 481 are already in [`configs/testnet.example.toml`](./configs/testnet.example.toml); you need to override `[wallet]` with your own wallet name and hotkey.
 
-> **The ingest service is a prerequisite — a validator is two processes, not one.**
-> The live weight source is a local event store the platform *pushes* into over a
-> public HTTPS endpoint you operate, so `validator run` cannot produce weights until
-> `prometheon ingest serve` is running and that endpoint is registered. Set that up
-> first with [`docs/decentralized-validation.md`](./docs/decentralized-validation.md),
-> then come back here. Skipping it gets you `validator.event_weight_source` on the
-> first cycle.
+> **A validator is two processes, not one.** The live weight source is a local
+> event store the platform *pushes* into over a public HTTPS endpoint you operate,
+> so `validator run` cannot produce weights until `prometheon ingest serve` is
+> running and that endpoint is registered. That setup comes **after** steps 1-3
+> below — it needs the config file and a verified validator token — and **before**
+> step 4. It is step 3.5 in
+> [`docs/decentralized-validation.md`](./docs/decentralized-validation.md);
+> skipping it gets you `validator.event_weight_source` on the first cycle.
 
 ```bash
 # 1. Copy the pre-pinned testnet config to a local file
@@ -185,6 +186,10 @@ uv run prometheon verify-validator \
   --platform-instance-id bitfan-staging \
   --chain-network test \
   --netuid 481
+
+# 3.5 Start the ingest service and register its public URL — see
+#     docs/decentralized-validation.md. The runner has no weight source until
+#     this is done.
 
 # 4. Run the validator
 uv run prometheon validator run --config ~/prometheon-testnet.toml
