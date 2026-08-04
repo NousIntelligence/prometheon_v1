@@ -9,9 +9,9 @@ import pytest
 from prometheon.identity.roles import ChainNetwork
 from prometheon.platform.endpoints import SnapshotMode
 from prometheon.validator.config import (
-    ValidatorRuntimeConfig,
     ConfigError,
     ValidatorConfig,
+    ValidatorRuntimeConfig,
     load_validator_config,
 )
 
