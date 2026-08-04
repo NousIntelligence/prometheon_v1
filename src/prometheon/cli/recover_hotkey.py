@@ -14,6 +14,7 @@ a 14-day cooldown after activation (consolidated specification §9).
 from __future__ import annotations
 
 import hashlib
+import re
 
 import click
 
@@ -28,7 +29,11 @@ from prometheon.cli._common import (
     read_api_token_or_exit,
     utc_now_iso,
 )
-from prometheon.identity.payloads import ColdkeyRecoveryPayload, ManualRecoveryPayload
+from prometheon.identity.payloads import (
+    SS58_LOOSE_RE,
+    ColdkeyRecoveryPayload,
+    ManualRecoveryPayload,
+)
 from prometheon.identity.recovery import (
     ColdkeyRecoveryEnvelope,
     ColdkeyRecoverySignatures,
@@ -61,8 +66,15 @@ from prometheon.security.signatures import sign_with_bittensor_keypair
 @click.option("--wallet-name", required=True)
 @click.option(
     "--old-hotkey-name",
-    required=True,
-    help="Old hotkey file name (used only to surface the SS58 in the payload).",
+    default=None,
+    help="Old hotkey file name. Only its SS58 is read — it never signs — so "
+    "use --old-hotkey-ss58 instead when the key is lost.",
+)
+@click.option(
+    "--old-hotkey-ss58",
+    default=None,
+    help="Old hotkey address, for when the key file is gone. This is the "
+    "recovery path for a genuinely lost hotkey.",
 )
 @click.option("--new-hotkey-name", required=True)
 @click.option(
@@ -92,7 +104,8 @@ def recover_hotkey(
     api_token: str | None,
     api_token_env: str,
     wallet_name: str,
-    old_hotkey_name: str,
+    old_hotkey_name: str | None,
+    old_hotkey_ss58: str | None,
     new_hotkey_name: str,
     coldkey_hotkey_name: str | None,
     discord_handle: str | None,
@@ -110,13 +123,32 @@ def recover_hotkey(
     role_enum = Role(role)
     chain = ChainNetwork(chain_network)
     token = read_api_token_or_exit(env_var=api_token_env, explicit=api_token)
-    new_keypair = load_hotkey_or_exit(name=wallet_name, hotkey_name=new_hotkey_name)
 
-    # ``old_hotkey_ss58`` is recorded in the payload so the platform can
-    # cross-check it against the linked account state; we read it from
-    # the on-disk old hotkey file rather than asking the operator to
-    # retype an SS58 string.
-    old_keypair = load_hotkey_or_exit(name=wallet_name, hotkey_name=old_hotkey_name)
+    # Argument checks before any wallet or network I/O, so a mistyped flag
+    # reports itself as a mistyped flag — not as a missing keyfile, and not
+    # after a nonce has already been spent.
+    #
+    # The old hotkey NEVER signs a recovery — the coldkey and the new hotkey
+    # do. Its address is recorded in the payload so the platform knows which
+    # binding is being replaced, and an address is all we need. Requiring the
+    # key FILE would have made recovery impossible in the one situation the
+    # command exists for: the old hotkey is lost.
+    if old_hotkey_ss58 and old_hotkey_name:
+        raise click.UsageError("pass either --old-hotkey-ss58 or --old-hotkey-name, not both")
+    if not old_hotkey_ss58 and not old_hotkey_name:
+        raise click.UsageError(
+            "pass --old-hotkey-ss58 (the address of the hotkey being replaced) "
+            "or --old-hotkey-name if you still hold its key file"
+        )
+    if old_hotkey_ss58 and not re.match(SS58_LOOSE_RE, old_hotkey_ss58):
+        raise click.UsageError(f"--old-hotkey-ss58 is not an SS58 address: {old_hotkey_ss58!r}")
+
+    new_keypair = load_hotkey_or_exit(name=wallet_name, hotkey_name=new_hotkey_name)
+    old_ss58 = (
+        old_hotkey_ss58
+        if old_hotkey_ss58
+        else load_hotkey_or_exit(name=wallet_name, hotkey_name=str(old_hotkey_name)).ss58_address
+    )
 
     with make_client(
         base_url=platform_base_url,
@@ -151,7 +183,7 @@ def recover_hotkey(
                 platform_instance_id=platform_instance_id,
                 netuid=netuid,
                 platform_account_id=platform_account_id,
-                old_hotkey_ss58=old_keypair.ss58_address,
+                old_hotkey_ss58=old_ss58,
                 coldkey_ss58=coldkey.ss58_address,
                 new_hotkey_ss58=new_keypair.ss58_address,
                 nonce=nonce_value,
@@ -179,7 +211,7 @@ def recover_hotkey(
                 platform_instance_id=platform_instance_id,
                 netuid=netuid,
                 platform_account_id=platform_account_id,
-                old_hotkey_ss58=old_keypair.ss58_address,
+                old_hotkey_ss58=old_ss58,
                 new_hotkey_ss58=new_keypair.ss58_address,
                 discord_handle_hash=discord_hash,
                 nonce=nonce_value,

@@ -102,9 +102,13 @@ check: lint format-check typecheck test ## Run lint, format-check, typecheck, an
 docker-validator: ## Build the validator container image.
 	$(DOCKER) build -f docker/Dockerfile.validator -t $(PKG)-validator:$(DOCKER_TAG) .
 
-.PHONY: docker-miner
-docker-miner: ## Build the miner container image.
-	$(DOCKER) build -f docker/Dockerfile.miner -t $(PKG)-miner:$(DOCKER_TAG) .
+.PHONY: docker-up
+docker-up: ## Bring up both validator processes (ingest + runner) via compose.
+	$(DOCKER) compose -f docker/compose.yaml up --build -d
+
+# There is no miner image on purpose: a Phase 1 miner runs no daemon. The
+# reward path is Fan Group growth on the platform; the CLI is a one-time
+# verify plus a status read.
 
 # ---------------------------------------------------------------------------
 # Cleanup

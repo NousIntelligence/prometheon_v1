@@ -65,29 +65,37 @@ The runtime refuses to start when:
 
 ## Run As a Long-Running Service
 
-The runner is a single Python process. Wrap it with your supervisor of choice (systemd, runit, supervisord). Example systemd unit:
+A validator is **two** processes, not one: `ingest serve` writes the event
+store, `validator run` reads it and submits weights. Ready-made units for both
+are in [`deploy/systemd/`](../../deploy/systemd/) — copy them, adjust `User`
+and the paths, and enable both:
 
-```ini
-[Unit]
-Description=Prometheon validator
-After=network.target
-
-[Service]
-Type=simple
-User=prometheon
-WorkingDirectory=/opt/prometheon
-Environment=PROMETHEON_VALIDATOR_API_TOKEN_FILE=/run/secrets/prometheon-validator-token
-ExecStart=/opt/prometheon/.venv/bin/prometheon validator run \
-    --config /etc/prometheon/finney.toml \
-    --state-directory /var/lib/prometheon/state
-Restart=on-failure
-RestartSec=15
-
-[Install]
-WantedBy=multi-user.target
+```bash
+sudo install -d -m 0755 -o prometheon -g prometheon /var/lib/prometheon
+sudo install -d -m 0750 /etc/prometheon
+sudo install -m 0600 /dev/null /etc/prometheon/validator.env
+printf 'PROMETHEON_VALIDATOR_API_TOKEN=%s\n' "<token>" \
+    | sudo tee /etc/prometheon/validator.env >/dev/null
+sudo cp deploy/systemd/prometheon-*.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now prometheon-ingest prometheon-validator
 ```
 
-(Substitute your own secret-injection mechanism for `EnvironmentFile=` or a `systemd-creds`-backed solution as appropriate.)
+Three things to get right, all of which fail quietly rather than loudly:
+
+- **`[validator] events_db` must be an absolute path**, identical to the
+  `ingest serve --db` argument. Relative paths resolve against each unit's
+  working directory, so a mismatch gives the runner an empty store to score.
+- **Only the runner needs the API token.** `ingest serve` authenticates each
+  push by the platform's publisher signature; it holds no token of yours.
+  Keep the secret out of the unit file — `EnvironmentFile=` with mode `0600`,
+  or `systemd-creds`. There is no `..._TOKEN_FILE` variant; the runtime reads
+  the variable named by `[platform] api_token_env`.
+- **The ingest listener needs a TLS reverse proxy.** It binds loopback; the
+  platform dials a public HTTPS URL and treats a redirect as delivery failure.
+
+`docker compose -f docker/compose.yaml up -d` runs the same pair in containers
+if you would rather not manage units.
 
 ---
 

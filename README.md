@@ -35,13 +35,13 @@ On each cycle the validator:
 
 1. Drops miners not currently registered in the metagraph.
 2. Drops miners with fewer than 3 active members (a member is active when their 14-day score is strictly greater than 50).
-3. Drops the configured burn hotkey from the regular candidate pool and drops miners with non-positive score.
+3. Drops the burn target — the subnet owner hotkey, read from chain — from the regular candidate pool, and drops miners with non-positive score.
 4. Ranks the remaining candidates by `(score DESC, active_members DESC, hotkey ASC)`.
 5. Selects the top `min(10, candidate_count)` winners.
 6. Applies the burn policy (one of four deterministic cases) and allocates a fixed pool of integer weight units across winners and the burn target using largest-remainder allocation.
 7. Resolves all targets to current UIDs and submits via `set_weights`.
 
-Detailed scoring, the four burn cases, snapshot formats, and the platform integration contract are described under [`docs/`](./docs/).
+Detailed scoring, the four burn cases, the event-stream contract, and the platform integration contract are described under [`docs/`](./docs/).
 
 ---
 
@@ -51,10 +51,10 @@ Detailed scoring, the four burn cases, snapshot formats, and the platform integr
 src/prometheon/   # Python package (security, identity, platform, chain, mechanisms, validator, miner, telemetry)
 neurons/          # Bittensor entrypoints (miner.py, validator.py)
 configs/          # Example TOML configuration files (placeholders for deployment values)
+deploy/           # systemd units for the two validator processes
 docs/             # Public documentation
 tests/            # Unit, contract, integration test suites and fixtures
-scripts/          # Operational shell scripts
-docker/           # Container images for miner and validator
+docker/           # Container image for the validator
 ```
 
 See [`docs/overview.md`](./docs/overview.md) for a walkthrough.
@@ -152,11 +152,19 @@ uv run prometheon verify-miner \
   --netuid 481
 ```
 
-After successful verification your Fan Group's scored activity flows into the daily snapshot. See [`docs/miner.md`](./docs/miner.md).
+After successful verification your Fan Group's scored activity flows into the event streams validators score. See [`docs/miner.md`](./docs/miner.md).
 
 ### Validator
 
-The validator is config-driven: every chain, wallet, platform, and burn setting lives in a TOML file, and `prometheon validator run` only takes `--config`. Pre-pinned values for testnet 481 are already in [`configs/testnet.example.toml`](./configs/testnet.example.toml); you only need to override `[wallet]` with your own wallet name and hotkey.
+The validator is config-driven: every chain, wallet, and platform setting lives in a TOML file, and `prometheon validator run` only takes `--config`. Pre-pinned values for testnet 481 are already in [`configs/testnet.example.toml`](./configs/testnet.example.toml); you need to override `[wallet]` with your own wallet name and hotkey.
+
+> **The ingest service is a prerequisite — a validator is two processes, not one.**
+> The live weight source is a local event store the platform *pushes* into over a
+> public HTTPS endpoint you operate, so `validator run` cannot produce weights until
+> `prometheon ingest serve` is running and that endpoint is registered. Set that up
+> first with [`docs/decentralized-validation.md`](./docs/decentralized-validation.md),
+> then come back here. Skipping it gets you `validator.event_weight_source` on the
+> first cycle.
 
 ```bash
 # 1. Copy the pre-pinned testnet config to a local file
@@ -194,7 +202,7 @@ See [`docs/validator.md`](./docs/validator.md) and [`docs/deployment/testnet.md`
 |---|---|
 | [`docs/overview.md`](./docs/overview.md) | Architecture and end-to-end data flow |
 | [`docs/miner.md`](./docs/miner.md) | Miner setup, Fan Group operation, expected rewards |
-| [`docs/validator.md`](./docs/validator.md) | Validator setup, snapshot modes, weight submission |
+| [`docs/validator.md`](./docs/validator.md) | Validator setup, running both services, weight submission |
 | [`docs/platform-api.md`](./docs/platform-api.md) | Public-facing description of the BitFan ↔ subnet API contract |
 | [`docs/scoring.md`](./docs/scoring.md) | 14-day window, active-member threshold, top-K selection |
 | [`docs/burn-policy.md`](./docs/burn-policy.md) | Burn target, four allocation cases, missing-target fallback |

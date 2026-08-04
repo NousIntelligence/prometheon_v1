@@ -26,13 +26,24 @@ from prometheon.miner.status import print_status
 
 
 def _main() -> int:
-    """Print miner status guidance and exit cleanly.
+    """Print miner status guidance, or forward arguments to the CLI.
 
-    Future Phase-1 enhancements may layer richer status checks against
-    the platform (e.g. fetch the linked account's current
-    ``miner_verified`` flag), but Phase 1 ships only the local
-    informational view.
+    Bare invocation keeps the informational view: a Phase 1 miner runs no
+    daemon, so there is nothing here to keep running.
+
+    Arguments are forwarded to ``prometheon`` rather than ignored. This
+    entry point used to drop them silently and exit 0, so
+    ``python neurons/miner.py verify-miner --username …`` printed status
+    and reported success while doing nothing at all — the worst possible
+    outcome for the one command a miner actually needs to work.
     """
+    if len(sys.argv) > 1:
+        from prometheon.cli.main import main
+
+        sys.argv = ["prometheon", *sys.argv[1:]]
+        main()
+        return 0
+
     print_status(stream=sys.stdout)
     return 0
 

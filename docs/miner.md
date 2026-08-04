@@ -21,7 +21,9 @@ This guide walks through the full setup in order: create a BitFan account, creat
 Install the CLI:
 
 ```bash
-pip install prometheon            # or `uv sync` from the repository
+git clone https://github.com/NousIntelligence/prometheon_v1
+cd prometheon_v1
+uv sync
 prometheon --version
 ```
 
@@ -57,9 +59,9 @@ prometheon verify-miner \
     --wallet-name        <coldkey_directory_name> \
     --wallet-hotkey      <hotkey_file_name> \
     --platform-base-url  https://subnet-api.bitfan.ai \
-    --platform-instance-id bitfan-production \
-    --chain-network      finney \
-    --netuid             <netuid>
+    --platform-instance-id bitfan-staging \
+    --chain-network      test \
+    --netuid             481
 ```
 
 The platform's verify guard first checks that the calling user **already leads a Fan Group**; if not, it rejects with a clear error and you should complete Step 1 first. On success the platform sets `miner_verified = true`, links your hotkey to your miner profile, and revokes the bootstrap token in the same transaction. `verify-miner` does **not** create a Fan Group — it only binds the hotkey to your existing leadership.
@@ -92,11 +94,21 @@ If your hotkey is compromised or you want to rotate keys:
 prometheon rotate-hotkey --role miner --wallet-name <wallet> \
     --old-hotkey-name <old> --new-hotkey-name <new> \
     --username <u> --email <e> \
-    --platform-base-url <url> --platform-instance-id <id> \
-    --chain-network finney --netuid <netuid>
+    --platform-base-url https://subnet-api.bitfan.ai \
+    --platform-instance-id bitfan-staging \
+    --chain-network test --netuid 481
 ```
 
-If your old hotkey is unavailable, see [`hotkey-rotation.md`](./hotkey-rotation.md) for coldkey recovery and the manual 2FA + Ops Console recovery flow.
+`rotate-hotkey` needs **both** key files, because both sign. If the old hotkey
+is lost, use `recover-hotkey` and name the old one by address
+(`--old-hotkey-ss58`) instead.
+
+Either way, know the cost before you do it: attribution resolves per day
+against the hotkey bound at `00:00Z`, so switching splits your rolling 14-day
+window across two hotkeys and can drop you below the 3-active-member
+eligibility threshold on both until the window refills. See
+[`hotkey-rotation.md`](./hotkey-rotation.md) — it also covers coldkey recovery
+and the manual 2FA + Ops Console flow for when the coldkey is gone too.
 
 ---
 

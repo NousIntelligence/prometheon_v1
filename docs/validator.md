@@ -21,7 +21,9 @@ This guide walks through the full validator setup, configuration, and operationa
 Install:
 
 ```bash
-pip install prometheon            # or `uv sync` from the repository
+git clone https://github.com/NousIntelligence/prometheon_v1
+cd prometheon_v1
+uv sync
 ```
 
 ---
@@ -294,6 +296,53 @@ weights — not an optional extra. Its operator guide is
 [`decentralized-validation.md`](./decentralized-validation.md): ingest
 endpoint setup and registration, catch-up and day-digest completeness,
 scoring, parity reporting, and the shadow comparison.
+
+---
+
+## Running both processes as services
+
+A validator is **two long-running processes** that share one event store:
+`prometheon ingest serve` (the only writer) and `prometheon validator run`
+(reads it back read-only and submits weights). Run both under a supervisor,
+not in a terminal.
+
+**systemd** — unit files are in [`deploy/systemd/`](../deploy/systemd/):
+
+```bash
+sudo install -d -m 0755 -o prometheon -g prometheon /var/lib/prometheon
+sudo install -d -m 0750 /etc/prometheon
+sudo install -m 0600 /dev/null /etc/prometheon/validator.env
+printf 'PROMETHEON_VALIDATOR_API_TOKEN=%s\n' "<token>" \
+    | sudo tee /etc/prometheon/validator.env >/dev/null
+sudo cp deploy/systemd/prometheon-*.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now prometheon-ingest prometheon-validator
+journalctl -u prometheon-validator -f
+```
+
+**Docker** — [`docker/compose.yaml`](../docker/compose.yaml) brings up the same
+two processes from one image, sharing a named volume:
+
+```bash
+export PROMETHEON_VALIDATOR_API_TOKEN="<token>"
+export PROMETHEON_CONFIG="$HOME/prometheon-testnet.toml"
+docker compose -f docker/compose.yaml up --build -d
+```
+
+Whichever you pick, two things decide whether it works:
+
+- **`events_db` must be an absolute path**, identical to `ingest serve --db`.
+  The default `.validator-state/events.sqlite` is relative to the working
+  directory, so two units started from different directories open two
+  different stores — and the runner scores the empty one.
+- **The ingest port needs a TLS reverse proxy in front of it.** The platform
+  pushes to a public HTTPS URL and counts a redirect as a delivery failure.
+  Both the unit and the compose file bind to loopback for that reason. See
+  [`decentralized-validation.md`](./decentralized-validation.md).
+
+`GET /healthz` on the ingest listener returns `200 {"status": "ok"}` with no
+auth. It is a liveness probe — the process is up — not a statement that the
+stream is current; for that use `prometheon ingest check-day`.
 
 ---
 

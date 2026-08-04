@@ -1,0 +1,41 @@
+# Prometheon validator runner — opens the event store read-only, rescores the
+# rolling window each cycle, and submits weights to the chain.
+#
+# Install alongside prometheon-ingest.service; see the comments there.
+#
+# `events_db` in /etc/prometheon/validator.toml must be the absolute path the
+# ingest unit writes (/var/lib/prometheon/events.sqlite below). The runner
+# needs read access to the wallet, so ProtectHome is off and the wallet
+# directory is granted explicitly.
+
+[Unit]
+Description=Prometheon validator weight runner
+Documentation=https://github.com/NousIntelligence/prometheon_v1/blob/main/docs/validator.md
+After=network-online.target prometheon-ingest.service
+Wants=network-online.target
+# Not Requires= — the runner survives an ingest restart on its own; it fails
+# the cycle, logs validator.event_weight_source, and retries on schedule.
+
+[Service]
+Type=simple
+User=prometheon
+Group=prometheon
+WorkingDirectory=/opt/prometheon
+EnvironmentFile=/etc/prometheon/validator.env
+# See the ingest unit: the venv binary directly, because ProtectSystem=strict
+# makes /opt read-only. `uv sync --no-dev` once at install time creates it.
+ExecStart=/opt/prometheon/.venv/bin/prometheon validator run \
+    --config /etc/prometheon/validator.toml \
+    --state-directory /var/lib/prometheon/state
+Restart=always
+RestartSec=30
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/prometheon
+# Wallet lives under the service user's home; read-only is enough to sign.
+ReadOnlyPaths=/home/prometheon/.bittensor
+
+[Install]
+WantedBy=multi-user.target
