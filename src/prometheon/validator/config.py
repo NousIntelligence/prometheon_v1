@@ -116,9 +116,10 @@ class ValidatorRuntimeConfig(BaseModel):
     # Local by default: the signature is written to attestations.ndjson
     # beside the state file whether or not it is delivered anywhere.
     attest_digests: bool = True
-    # Also POST each attestation to the platform. Requires the platform to
-    # expose the attestation endpoint; enable once it does.
-    submit_attestations: bool = False
+    # Also POST each attestation to the platform. The endpoint is live in
+    # production, so this is on by default: an attestation nobody else holds
+    # is evidence only you can produce, which is half of the point.
+    submit_attestations: bool = True
 
 
 class SchedulerConfig(BaseModel):

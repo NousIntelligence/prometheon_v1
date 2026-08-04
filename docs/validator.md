@@ -323,9 +323,10 @@ The result is appended to `attestations.ndjson` in the state directory: a
 two-signature artifact — the platform's and yours — over the same digest.
 
 It runs automatically and cannot fail a cycle; a day that is not sealed yet
-or a read-API outage is retried on the next pass. Set
-`[validator] submit_attestations = true` to also deliver them to the
-platform. A digest that does **not** match your records is never signed and
+or a read-API outage is retried on the next pass. Attestations are also
+delivered to the platform by default (`[validator] submit_attestations`),
+which is what puts your statement beside every other validator's; set it to
+`false` to keep them purely local. A digest that does **not** match your records is never signed and
 is logged as `attestation.digest_mismatch` — investigate with
 `prometheon ingest check-day` before doing anything else.
 
