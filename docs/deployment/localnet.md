@@ -15,7 +15,7 @@ Localnet is for development against a local Bittensor subtensor process. Use it 
 ## Setup
 
 ```bash
-git clone https://github.com/NousIntelligence/prometheon_v1
+git clone https://github.com/BitSpaceorganization/prometheon_v1
 cd prometheon_v1
 uv sync --group dev
 cp configs/localnet.example.toml ~/prometheon-local.toml

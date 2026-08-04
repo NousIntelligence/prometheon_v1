@@ -62,8 +62,8 @@ dependencies = [
 ]
 
 [project.urls]
-Repository = "https://github.com/NousIntelligence/prometheon_v1"
-Issues = "https://github.com/NousIntelligence/prometheon_v1/issues"
+Repository = "https://github.com/BitSpaceorganization/prometheon_v1"
+Issues = "https://github.com/BitSpaceorganization/prometheon_v1/issues"
 
 [project.scripts]
 prometheon = "prometheon.cli.main:main"

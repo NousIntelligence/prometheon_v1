@@ -225,7 +225,7 @@ Phase 1 is live on Bittensor testnet as **netuid 481**. The mechanism is fixed a
 
 | Phase | Repository | Status |
 |---|---|---|
-| Phase 1 — growth incentive | `NousIntelligence/prometheon_v1` | **Testnet (netuid 481)** |
+| Phase 1 — growth incentive | `BitSpaceorganization/prometheon_v1` | **Testnet (netuid 481)** |
 | Phase 2 | future | Reserved |
 | Phase 3 | future | Reserved |
 | Phase 4 | future | Reserved |

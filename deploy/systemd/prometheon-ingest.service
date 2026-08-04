@@ -20,7 +20,7 @@
 
 [Unit]
 Description=Prometheon event ingest
-Documentation=https://github.com/NousIntelligence/prometheon_v1/blob/main/docs/decentralized-validation.md
+Documentation=https://github.com/BitSpaceorganization/prometheon_v1/blob/main/docs/decentralized-validation.md
 After=network-online.target
 Wants=network-online.target
 

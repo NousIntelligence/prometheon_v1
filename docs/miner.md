@@ -21,7 +21,7 @@ This guide walks through the full setup in order: create a BitFan account, creat
 Install the CLI:
 
 ```bash
-git clone https://github.com/NousIntelligence/prometheon_v1
+git clone https://github.com/BitSpaceorganization/prometheon_v1
 cd prometheon_v1
 uv sync
 uv run prometheon --version

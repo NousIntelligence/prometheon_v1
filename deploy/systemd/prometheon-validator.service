@@ -14,7 +14,7 @@
 
 [Unit]
 Description=Prometheon validator weight runner
-Documentation=https://github.com/NousIntelligence/prometheon_v1/blob/main/docs/validator.md
+Documentation=https://github.com/BitSpaceorganization/prometheon_v1/blob/main/docs/validator.md
 After=network-online.target prometheon-ingest.service
 Wants=network-online.target
 # Not Requires= — the runner survives an ingest restart on its own; it fails
