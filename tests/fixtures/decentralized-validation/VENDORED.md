@@ -1,13 +1,23 @@
 # Vendored fixture suite — Decentralized Validation
 
 **Source:** BitFan platform repo, `docs/specs/Subnet/fixtures/`
-**Pinned revision:** fixture release **r4** = BitFan commit `2a36285f`
-**Vendored:** 2026-07-30 (supersedes r3 = `bce1b9b`)
+**Pinned revision:** fixture release **r5** = BitFan commit `a0243b47`
+**Vendored:** 2026-08-04 (supersedes r4 = `2a36285f`)
 
-The r4 release adds `parity-report/01-scores-hash/` and gives
+r5 is the one release that is **additive rather than a regeneration**: every
+r4 file is byte-identical and only `exclusion-tightening/` is new. Verified by
+extracting both tarballs and diffing the trees — the sole other difference is
+this repo's own org-rename edit to `README.md`, which is deliberately kept.
+
+`exclusion-tightening/01-multi-tightening-day` pins the continuous-emission
+model: several verdicts for one (user, epoch), each distinct weight its own
+record, effective weight the minimum, and `verdicts_complete.verdict_count`
+counting records keyed on `applies_to_epoch` rather than distinct users or
+the `epoch_id` bucket.
+
+The r4 release added `parity-report/01-scores-hash/` and gave
 `attribution/01-vectors` a `role` field on `binding_events` plus a dual-role
-leader case. Everything else is a full regeneration — signatures re-rolled,
-so most files differ byte-for-byte without any semantic change.
+leader case.
 
 This directory is the shared, byte-identical conformance suite for the
 Decentralized Validation program (event-stream ingest + open score

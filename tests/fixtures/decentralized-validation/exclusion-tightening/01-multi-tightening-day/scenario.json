@@ -1,0 +1,272 @@
+{
+  "applies_to_epoch": "2026-07-14",
+  "derivation": {
+    "formula": "event_id = \"0x\" + sha256(\"prometheon_event_id:\" || user_id || \"|\" || kind || \"|\" || JCS(target) || \"|\" || client_nonce)",
+    "kind": "verdict",
+    "target": {
+      "applies_to_epoch": "2026-07-14"
+    },
+    "client_nonce_format": "verdict:<applies_to_epoch>:<user_id>:<weight_bp>",
+    "cases": [
+      {
+        "user_id": "589e0648-6601-4f97-ac35-70d37c3af36d",
+        "applies_to_epoch": "2026-07-14",
+        "weight_bp": 10000,
+        "client_nonce": "verdict:2026-07-14:589e0648-6601-4f97-ac35-70d37c3af36d:10000",
+        "event_id": "0x6c01a213d3c0c384cbac23de898f224334369b2e7f4a3018182076e1e8c26c09"
+      },
+      {
+        "user_id": "589e0648-6601-4f97-ac35-70d37c3af36d",
+        "applies_to_epoch": "2026-07-14",
+        "weight_bp": 5000,
+        "client_nonce": "verdict:2026-07-14:589e0648-6601-4f97-ac35-70d37c3af36d:5000",
+        "event_id": "0x9bddb056217aa2823cfaf1b37109880efb2f74a397bcc8c81cd1cadce6209347"
+      },
+      {
+        "user_id": "589e0648-6601-4f97-ac35-70d37c3af36d",
+        "applies_to_epoch": "2026-07-14",
+        "weight_bp": 2500,
+        "client_nonce": "verdict:2026-07-14:589e0648-6601-4f97-ac35-70d37c3af36d:2500",
+        "event_id": "0x7ef73ce27fab53473107d2e4e5e3af5316611b9606a80966a4884336376175c4"
+      },
+      {
+        "user_id": "589e0648-6601-4f97-ac35-70d37c3af36d",
+        "applies_to_epoch": "2026-07-14",
+        "weight_bp": 1250,
+        "client_nonce": "verdict:2026-07-14:589e0648-6601-4f97-ac35-70d37c3af36d:1250",
+        "event_id": "0x9e3af3ab319c69cd83e6060b807558ffb7d48a62231be138542aef87c5fcc1ee"
+      },
+      {
+        "user_id": "589e0648-6601-4f97-ac35-70d37c3af36d",
+        "applies_to_epoch": "2026-07-14",
+        "weight_bp": 0,
+        "client_nonce": "verdict:2026-07-14:589e0648-6601-4f97-ac35-70d37c3af36d:0",
+        "event_id": "0xaac14293aab11ab77854e291225ce3fc9d7831565fc350163d78974b2bdbf48d"
+      }
+    ]
+  },
+  "records": [
+    {
+      "domain": "PROMETHEON_EVENT_RECORD_V1",
+      "family": "exclusion",
+      "seq": 501,
+      "epoch_id": "2026-07-14",
+      "event_id": "0x9bddb056217aa2823cfaf1b37109880efb2f74a397bcc8c81cd1cadce6209347",
+      "user_ref_evt": "usr_evt_3ce74229a1008b538d4b936e2d772222817e0a73baae6f9b0cada0d419f4c725",
+      "group_id": null,
+      "received_ts": "2026-07-14T09:41:02Z",
+      "category_id": null,
+      "core": {
+        "kind": "verdict",
+        "applies_to_epoch": "2026-07-14",
+        "weight_bp": 5000,
+        "reason_codes": [
+          "risk_flag_amber"
+        ]
+      },
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "domain": "PROMETHEON_EVENT_RECORD_V1",
+      "family": "exclusion",
+      "seq": 502,
+      "epoch_id": "2026-07-14",
+      "event_id": "0x0dfee56ecaf4bde1e380bf7b0f8560ca10c88e85473cc11381437c649282ca39",
+      "user_ref_evt": "usr_evt_1ddebd24df07ac2073f9f31547ed0fd171a3c0c2db57fb193b91a2e471fe3a57",
+      "group_id": null,
+      "received_ts": "2026-07-14T13:07:55Z",
+      "category_id": null,
+      "core": {
+        "kind": "verdict",
+        "applies_to_epoch": "2026-07-14",
+        "weight_bp": 5000,
+        "reason_codes": [
+          "risk_flag_amber"
+        ]
+      },
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "domain": "PROMETHEON_EVENT_RECORD_V1",
+      "family": "exclusion",
+      "seq": 503,
+      "epoch_id": "2026-07-14",
+      "event_id": "0x7ef73ce27fab53473107d2e4e5e3af5316611b9606a80966a4884336376175c4",
+      "user_ref_evt": "usr_evt_3ce74229a1008b538d4b936e2d772222817e0a73baae6f9b0cada0d419f4c725",
+      "group_id": null,
+      "received_ts": "2026-07-14T21:18:40Z",
+      "category_id": null,
+      "core": {
+        "kind": "verdict",
+        "applies_to_epoch": "2026-07-14",
+        "weight_bp": 2500,
+        "reason_codes": [
+          "risk_flag_amber",
+          "device_cluster"
+        ]
+      },
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "domain": "PROMETHEON_EVENT_RECORD_V1",
+      "family": "exclusion",
+      "seq": 504,
+      "epoch_id": "2026-07-15",
+      "event_id": "0x7e000dd43a94ea777e18ef6dc79d40f2d52bb39c8a31b68e3a20010594e90af3",
+      "user_ref_evt": "usr_evt_319e341a7f5d0eb3606f796373b3656f7be76055a034257c5b2a4ed9cf2b7d62",
+      "group_id": null,
+      "received_ts": "2026-07-15T00:02:11Z",
+      "category_id": null,
+      "core": {
+        "kind": "verdict",
+        "applies_to_epoch": "2026-07-14",
+        "weight_bp": 1250,
+        "reason_codes": [
+          "network_cluster"
+        ]
+      },
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "domain": "PROMETHEON_EVENT_RECORD_V1",
+      "family": "exclusion",
+      "seq": 505,
+      "epoch_id": "2026-07-15",
+      "event_id": "0x2d39d4fec78b6a977108575ba7cacb8c4d3623ce0f5441e5374b49730d4dc27b",
+      "user_ref_evt": null,
+      "group_id": null,
+      "received_ts": "2026-07-15T00:05:03Z",
+      "category_id": null,
+      "core": {
+        "kind": "verdicts_complete",
+        "applies_to_epoch": "2026-07-14",
+        "verdict_count": 4
+      },
+      "device_pubkey": null,
+      "user_sig": null
+    }
+  ],
+  "records_arrival_tightest_first": [
+    {
+      "domain": "PROMETHEON_EVENT_RECORD_V1",
+      "family": "exclusion",
+      "seq": 503,
+      "epoch_id": "2026-07-14",
+      "event_id": "0x7ef73ce27fab53473107d2e4e5e3af5316611b9606a80966a4884336376175c4",
+      "user_ref_evt": "usr_evt_3ce74229a1008b538d4b936e2d772222817e0a73baae6f9b0cada0d419f4c725",
+      "group_id": null,
+      "received_ts": "2026-07-14T21:18:40Z",
+      "category_id": null,
+      "core": {
+        "kind": "verdict",
+        "applies_to_epoch": "2026-07-14",
+        "weight_bp": 2500,
+        "reason_codes": [
+          "risk_flag_amber",
+          "device_cluster"
+        ]
+      },
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "domain": "PROMETHEON_EVENT_RECORD_V1",
+      "family": "exclusion",
+      "seq": 504,
+      "epoch_id": "2026-07-15",
+      "event_id": "0x7e000dd43a94ea777e18ef6dc79d40f2d52bb39c8a31b68e3a20010594e90af3",
+      "user_ref_evt": "usr_evt_319e341a7f5d0eb3606f796373b3656f7be76055a034257c5b2a4ed9cf2b7d62",
+      "group_id": null,
+      "received_ts": "2026-07-15T00:02:11Z",
+      "category_id": null,
+      "core": {
+        "kind": "verdict",
+        "applies_to_epoch": "2026-07-14",
+        "weight_bp": 1250,
+        "reason_codes": [
+          "network_cluster"
+        ]
+      },
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "domain": "PROMETHEON_EVENT_RECORD_V1",
+      "family": "exclusion",
+      "seq": 501,
+      "epoch_id": "2026-07-14",
+      "event_id": "0x9bddb056217aa2823cfaf1b37109880efb2f74a397bcc8c81cd1cadce6209347",
+      "user_ref_evt": "usr_evt_3ce74229a1008b538d4b936e2d772222817e0a73baae6f9b0cada0d419f4c725",
+      "group_id": null,
+      "received_ts": "2026-07-14T09:41:02Z",
+      "category_id": null,
+      "core": {
+        "kind": "verdict",
+        "applies_to_epoch": "2026-07-14",
+        "weight_bp": 5000,
+        "reason_codes": [
+          "risk_flag_amber"
+        ]
+      },
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "domain": "PROMETHEON_EVENT_RECORD_V1",
+      "family": "exclusion",
+      "seq": 502,
+      "epoch_id": "2026-07-14",
+      "event_id": "0x0dfee56ecaf4bde1e380bf7b0f8560ca10c88e85473cc11381437c649282ca39",
+      "user_ref_evt": "usr_evt_1ddebd24df07ac2073f9f31547ed0fd171a3c0c2db57fb193b91a2e471fe3a57",
+      "group_id": null,
+      "received_ts": "2026-07-14T13:07:55Z",
+      "category_id": null,
+      "core": {
+        "kind": "verdict",
+        "applies_to_epoch": "2026-07-14",
+        "weight_bp": 5000,
+        "reason_codes": [
+          "risk_flag_amber"
+        ]
+      },
+      "device_pubkey": null,
+      "user_sig": null
+    },
+    {
+      "domain": "PROMETHEON_EVENT_RECORD_V1",
+      "family": "exclusion",
+      "seq": 505,
+      "epoch_id": "2026-07-15",
+      "event_id": "0x2d39d4fec78b6a977108575ba7cacb8c4d3623ce0f5441e5374b49730d4dc27b",
+      "user_ref_evt": null,
+      "group_id": null,
+      "received_ts": "2026-07-15T00:05:03Z",
+      "category_id": null,
+      "core": {
+        "kind": "verdicts_complete",
+        "applies_to_epoch": "2026-07-14",
+        "verdict_count": 4
+      },
+      "device_pubkey": null,
+      "user_sig": null
+    }
+  ],
+  "expected": {
+    "verdict_records": 4,
+    "distinct_event_ids": 4,
+    "marker_verdict_count": 4,
+    "records_in_epoch_bucket": {
+      "2026-07-14": 3,
+      "2026-07-15": 2
+    },
+    "effective_weight_bp": {
+      "usr_evt_3ce74229a1008b538d4b936e2d772222817e0a73baae6f9b0cada0d419f4c725": 2500,
+      "usr_evt_1ddebd24df07ac2073f9f31547ed0fd171a3c0c2db57fb193b91a2e471fe3a57": 5000,
+      "usr_evt_319e341a7f5d0eb3606f796373b3656f7be76055a034257c5b2a4ed9cf2b7d62": 1250
+    }
+  }
+}
