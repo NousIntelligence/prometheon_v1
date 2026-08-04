@@ -214,6 +214,7 @@ See [`docs/validator.md`](./docs/validator.md) and [`docs/deployment/testnet.md`
 | [`docs/hotkey-rotation.md`](./docs/hotkey-rotation.md) | Normal rotation, coldkey recovery, manual recovery |
 | [`docs/security.md`](./docs/security.md) | Signing primitives, replay defenses, key rotation |
 | [`docs/decentralized-validation.md`](./docs/decentralized-validation.md) | Event-stream ingest, open score recomputation, shadow mode |
+| [`docs/digest-attestation.md`](./docs/digest-attestation.md) | Validator countersignatures over the platform's day digests |
 | [`docs/deployment/`](./docs/deployment/) | Localnet, testnet, mainnet deployment guides |
 
 ---
