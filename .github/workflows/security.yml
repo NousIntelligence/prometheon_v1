@@ -87,15 +87,33 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Fail on unsigned commits in PR range
+      # `git log --pretty=%G?` cannot answer this on a runner: verifying an
+      # SSH signature needs the signer's public key in an allowed_signers
+      # file, which CI has no copy of, so every commit reports "N" and the
+      # job failed on every PR regardless of whether it was signed. Ask
+      # GitHub instead — it already holds the keys registered on each
+      # account, and its verdict is the one shown in the UI.
+      - name: Fail on unverified commits in PR range
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          base="${{ github.event.pull_request.base.sha }}"
-          head="${{ github.event.pull_request.head.sha }}"
-          unsigned="$(git log --pretty='%H %G?' "$base..$head" | awk '$2!="G" && $2!="U" {print $1}')"
-          if [[ -n "$unsigned" ]]; then
-            echo "::error::The following commits are unsigned or have an invalid signature:"
-            echo "$unsigned"
+          unverified=""
+          for sha in $(git rev-list "$BASE..$HEAD"); do
+            verdict="$(gh api "repos/$REPO/commits/$sha" \
+              --jq '.commit.verification.verified, .commit.verification.reason' | paste -sd' ')"
+            echo "$sha $verdict"
+            case "$verdict" in
+              true*) ;;
+              *) unverified="$unverified$sha $verdict"$'\n' ;;
+            esac
+          done
+          if [[ -n "$unverified" ]]; then
+            echo "::error::Unverified commits in this PR:"
+            printf '%s' "$unverified"
             exit 1
           fi
-          echo "All commits in the PR range carry valid signatures."
+          echo "Every commit in the PR range is verified by GitHub."
