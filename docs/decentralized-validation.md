@@ -258,6 +258,16 @@ as incomplete. Keep completeness checks inside the window.
 
 ---
 
+## Countersigning the day digest
+
+Verifying a digest tells *you* the day is complete. Signing it tells anyone
+else. Once a day matches locally, the runner signs the digest with your
+validator hotkey and appends the result to `attestations.ndjson` — see
+[`digest-attestation.md`](./digest-attestation.md) for the envelope and the
+verification rules.
+
+---
+
 ## Scoring and shadow mode
 
 Recompute miner records for an epoch from your local store:
