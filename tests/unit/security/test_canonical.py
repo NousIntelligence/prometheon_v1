@@ -32,9 +32,9 @@ pytestmark = pytest.mark.unit
 
 
 class TestSigningDomains:
-    """The twelve Prometheon signing domains must be exact, complete, and ASCII."""
+    """The thirteen Prometheon signing domains must be exact, complete, and ASCII."""
 
-    def test_all_twelve_domains_are_declared(self) -> None:
+    def test_all_thirteen_domains_are_declared(self) -> None:
         assert (
             frozenset(
                 {
@@ -50,6 +50,7 @@ class TestSigningDomains:
                     "PROMETHEON_EVENT_RECORD_V1",
                     "PROMETHEON_EVENT_V1",
                     "PROMETHEON_DAY_DIGEST_V1",
+                    "PROMETHEON_DIGEST_ATTESTATION_V1",
                 }
             )
             == ALL_DOMAINS

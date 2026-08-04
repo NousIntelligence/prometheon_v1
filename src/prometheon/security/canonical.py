@@ -59,6 +59,10 @@ DOMAIN_INGEST_PUSH: Final[str] = "PROMETHEON_INGEST_PUSH_V1"
 DOMAIN_EVENT_RECORD: Final[str] = "PROMETHEON_EVENT_RECORD_V1"
 DOMAIN_EVENT: Final[str] = "PROMETHEON_EVENT_V1"
 DOMAIN_DAY_DIGEST: Final[str] = "PROMETHEON_DAY_DIGEST_V1"
+# A validator's countersignature over a day digest it has verified against
+# its own stored records. Separate from DOMAIN_DAY_DIGEST so a platform
+# signature can never be replayed as a validator attestation, or the reverse.
+DOMAIN_DIGEST_ATTESTATION: Final[str] = "PROMETHEON_DIGEST_ATTESTATION_V1"
 
 ALL_DOMAINS: Final[frozenset[str]] = frozenset(
     {
@@ -74,6 +78,7 @@ ALL_DOMAINS: Final[frozenset[str]] = frozenset(
         DOMAIN_EVENT_RECORD,
         DOMAIN_EVENT,
         DOMAIN_DAY_DIGEST,
+        DOMAIN_DIGEST_ATTESTATION,
     }
 )
 
@@ -337,6 +342,7 @@ __all__ = [
     "ALL_DOMAINS",
     "DOMAIN_API_REQUEST",
     "DOMAIN_DAY_DIGEST",
+    "DOMAIN_DIGEST_ATTESTATION",
     "DOMAIN_EVENT",
     "DOMAIN_EVENT_RECORD",
     "DOMAIN_HOTKEY_RECOVERY",
