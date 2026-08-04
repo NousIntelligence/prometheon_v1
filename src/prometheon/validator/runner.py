@@ -50,6 +50,7 @@ All external dependencies pass through the constructor or the
 
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -72,6 +73,7 @@ from prometheon.events.pipeline import (
     build_parity_report,
     current_epoch,
     score_event_stream,
+    window_epochs,
 )
 from prometheon.events.records import EventFamily
 from prometheon.events.store import EventStore
@@ -407,6 +409,39 @@ class ValidatorRunner:
         with EventStore(db_path, read_only=True) as store:
             scores = score_event_stream(store, scoring_date=epoch, live=True)
             cursors = {family.value: store.last_stored_seq(family) for family in EventFamily}
+            stored_in_window = store.record_count_in_epochs(window_epochs(epoch))
+
+        # A store with nothing in the window scores to zero miners, which
+        # the engine turns into a full-burn vector — a real economic action
+        # taken on absent input. "Nobody qualified" and "nothing arrived"
+        # are indistinguishable downstream, so they are separated here: the
+        # first is a legitimate verdict, the second is a local malfunction
+        # (ingest down, wrong events_db, or a stream that never started).
+        #
+        # The count spans ALL FOUR families deliberately, not just activity.
+        # The platform seals a verdicts_complete marker every day even when
+        # nothing happened, so a live stream always leaves records in the
+        # window. That makes the two cases separable: a quiet subnet with a
+        # healthy stream still counts records here and still burns — which
+        # is the honest verdict when no miner earned anything — while a dead
+        # stream counts zero and stops. Counting activity alone would
+        # conflate them and refuse to submit through a legitimately quiet
+        # period, which is exactly the pre-launch state this subnet is in.
+        #
+        # This is not a completeness gate. It never asks whether the store
+        # matches the platform's — divergence is chain consensus's problem.
+        # It asks only whether there is any input at all, the same question
+        # the missing-store check above already answers, and the cycle loop
+        # simply retries next tick rather than exiting.
+        if stored_in_window == 0:
+            raise EventWeightSourceError(
+                f"event store {db_path} holds no records for the scoring window "
+                f"({window_epochs(epoch)[0]} … {epoch}). Submitting now would burn "
+                "100% of the weight pool on absent input, so this cycle submits "
+                "nothing. Check that 'ingest serve' is running against this exact "
+                "path, that the platform has enabled delivery, and run "
+                "'prometheon ingest backfill' if you are joining a running stream."
+            )
 
         report = build_parity_report(scores)
         self._last_event_scores = scores
@@ -422,7 +457,25 @@ class ValidatorRunner:
             miner_count=len(scores.miner_records),
             scored_users=len(report["scores"]),
             cursors=cursors,
+            stored_in_window=stored_in_window,
+            missing_markers=list(scores.missing_markers),
         )
+
+        # A closed day in the window without its verdicts_complete marker
+        # means the exclusion stream stalled — every anti-fraud verdict with
+        # it. Scores silently drift to full weight, so this gets its own
+        # event rather than riding along as a field nobody greps for.
+        if scores.missing_markers:
+            report_event(
+                event_type="cycle_missing_verdict_markers",
+                state_directory=self._state_directory,
+                level=logging.WARNING,
+                epochs=list(scores.missing_markers),
+                detail=(
+                    "closed days in the scoring window have no verdicts_complete "
+                    "marker; their activity is scored at full weight"
+                ),
+            )
         # The plan's identity fields carry the inputs, not a fake snapshot
         # id — anything that reads state must be able to tell the two
         # sources apart at a glance.

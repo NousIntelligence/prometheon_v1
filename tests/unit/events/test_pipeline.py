@@ -379,3 +379,46 @@ class TestLiveRollingWindow:
         moment = datetime(2026, 8, 3, 23, 59, 59, tzinfo=timezone.utc)
         assert current_epoch(moment) == "2026-08-03"
         assert current_epoch() == datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
+class TestMissingMarkerReporting:
+    """Live mode suppresses TODAY's marker — not the rest of the window's.
+
+    The platform seals one marker per closed day. A closed day in the
+    window without one means the exclusion stream stalled, and with it
+    every anti-fraud verdict: scores drift silently to full weight. That
+    has to reach a surface.
+    """
+
+    def test_todays_absent_marker_is_not_reported(self, tmp_path: Path) -> None:
+        with EventStore(tmp_path / "e.sqlite") as store:
+            _populate(store, with_marker=False)
+            result = score_event_stream(store, scoring_date=SCORING_DATE, live=True)
+
+        assert result.marker_missing is False
+        assert SCORING_DATE not in result.missing_markers
+
+    def test_closed_days_without_markers_are_reported(self, tmp_path: Path) -> None:
+        with EventStore(tmp_path / "e.sqlite") as store:
+            _populate(store, with_marker=False)
+            result = score_event_stream(store, scoring_date=SCORING_DATE, live=True)
+
+        # The 13 closed days before the scored one all lack markers here.
+        window = window_epochs(SCORING_DATE)
+        assert set(result.missing_markers) == set(window[:-1])
+        assert len(result.missing_markers) == SCORING_WINDOW_DAYS - 1
+
+    def test_a_present_marker_clears_its_day(self, tmp_path: Path) -> None:
+        with EventStore(tmp_path / "e.sqlite") as store:
+            _populate(store)  # writes the marker for SCORING_DATE
+            result = score_event_stream(store, scoring_date=SCORING_DATE, live=True)
+
+        assert SCORING_DATE not in result.missing_markers
+
+    def test_sealed_mode_reports_the_scored_day_too(self, tmp_path: Path) -> None:
+        with EventStore(tmp_path / "e.sqlite") as store:
+            _populate(store, with_marker=False)
+            result = score_event_stream(store, scoring_date=SCORING_DATE, allow_missing_marker=True)
+
+        assert result.marker_missing is True
+        assert SCORING_DATE in result.missing_markers

@@ -28,7 +28,7 @@ hand (or from cron) until the automation glue lands.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import click
@@ -54,7 +54,11 @@ from prometheon.events.pipeline import (
 )
 from prometheon.events.records import EventFamily
 from prometheon.events.registration import RegistrationError, register_ingest_endpoint
-from prometheon.events.store import EventStore
+from prometheon.events.store import (
+    DEFAULT_NONCE_RETENTION_DAYS,
+    RETENTION_EPOCHS,
+    EventStore,
+)
 from prometheon.mechanisms.phase1_growth.snapshot import MinerRecord
 from prometheon.validator.config import ValidatorConfig, load_validator_config
 
@@ -401,6 +405,75 @@ def check_day(
 
     if mismatched:
         raise click.exceptions.Exit(3)
+
+
+@ingest.command(name="prune")
+@click.option(
+    "--db",
+    "db_path",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="SQLite event-store path.",
+)
+@click.option(
+    "--keep-epochs",
+    default=RETENTION_EPOCHS,
+    show_default=True,
+    type=int,
+    help="Window-family epochs to retain (the scoring window needs 21).",
+)
+@click.option(
+    "--keep-nonce-days",
+    default=DEFAULT_NONCE_RETENTION_DAYS,
+    show_default=True,
+    type=int,
+    help="Days of replay nonces to retain (the replay window is ±300 s).",
+)
+@click.option("--dry-run", is_flag=True, help="Report what would be deleted, delete nothing.")
+def prune(db_path: Path, keep_epochs: int, keep_nonce_days: int, dry_run: bool) -> None:
+    """Apply the retention policy to the local event store.
+
+    Two independent jobs, both of which grow without bound otherwise:
+
+    - **Window families** (``activity``, ``exclusion``) older than
+      ``--keep-epochs``. State families (``identity``, ``group``) are never
+      pruned — attribution and device-key windows replay from genesis — and
+      pruning never moves a stream cursor, so position and retention stay
+      independent.
+    - **Replay nonces**, which gain a row per push (a delivery tick is
+      ~15 s, so thousands a day) and are useless once older than the
+      ±300-second replay window.
+
+    Safe to run while ``ingest serve`` is writing: the store takes a busy
+    timeout and the deletes are transactional. Nothing here can affect a
+    score inside the scoring window — that is what ``--keep-epochs``
+    protects, and it defaults above the 21 days the window actually needs.
+    """
+    if keep_epochs < RETENTION_EPOCHS:
+        raise click.ClickException(
+            f"--keep-epochs {keep_epochs} is below the {RETENTION_EPOCHS}-epoch retention "
+            "floor; the scoring window would lose days it still needs"
+        )
+
+    today = datetime.now(timezone.utc)
+    before_epoch = (today - timedelta(days=keep_epochs)).strftime("%Y-%m-%d")
+    before_nonce = (today - timedelta(days=keep_nonce_days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    with EventStore(db_path) as store:
+        if dry_run:
+            stale = store.count_prunable(before_epoch=before_epoch, before_nonce=before_nonce)
+            echo_info(
+                f"would prune {stale.records} window-family records older than {before_epoch} "
+                f"and {stale.nonces} nonces older than {before_nonce}"
+            )
+            return
+        records = store.prune_window_families(before_epoch=before_epoch)
+        nonces = store.prune_nonces(before=before_nonce)
+
+    echo_success(
+        f"pruned {records} window-family records older than {before_epoch} "
+        f"and {nonces} nonces older than {before_nonce}"
+    )
 
 
 @ingest.command(name="submit-parity")

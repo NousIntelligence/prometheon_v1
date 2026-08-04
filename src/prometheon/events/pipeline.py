@@ -82,6 +82,7 @@ class EventStreamScores:
     marker_missing: bool
     verdict_count_mismatch: dict[str, tuple[int, int]]
     live: bool = False
+    missing_markers: tuple[str, ...] = ()
 
 
 def build_parity_report(scores: EventStreamScores) -> dict[str, Any]:
@@ -252,6 +253,17 @@ def score_event_stream(
             "score later or pass allow_missing_marker after the grace period"
         )
 
+    # Suppressing the CURRENT day's marker is correct; suppressing the rest
+    # of the window's was collateral. The platform seals one marker per day,
+    # so a closed day without one means the exclusion stream stalled — and
+    # with it every anti-fraud verdict. Left unreported, scores silently
+    # drift to full weight and nothing on any surface says why.
+    missing_markers = tuple(
+        epoch
+        for epoch in window_epochs(scoring_date)
+        if epoch not in markers and not (live and epoch == scoring_date)
+    )
+
     verdict_count_mismatch = {
         epoch: (verdict_counts.get(epoch, 0), expected)
         for epoch, expected in markers.items()
@@ -294,6 +306,7 @@ def score_event_stream(
         marker_missing=marker_missing,
         verdict_count_mismatch=verdict_count_mismatch,
         live=live,
+        missing_markers=missing_markers,
     )
 
 
