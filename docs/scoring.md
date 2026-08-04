@@ -1,6 +1,6 @@
 # Scoring System
 
-Prometheon Phase 1 is a deterministic, integer-only scoring system. Given the same signed snapshot, the same metagraph, and the same configuration, every compliant validator produces the same weight vector.
+Prometheon Phase 1 is a deterministic, integer-only scoring system. Given the same stored event records, the same metagraph, and the same configuration, every compliant validator produces the same weight vector.
 
 This document describes the rules that turn user activity into miner weights. The full algorithm specification lives alongside the code in the engine module.
 
@@ -16,7 +16,9 @@ user_score_14d_points : int    0 <= score <= 280
 
 The upper bound is `DAILY_SCORE_CAP × 14 = 280`, where the daily cap is **20** for Phase 1. A user cannot exceed 20 score points in a single day regardless of how much they do.
 
-The scoring engine is entirely platform-side. Anti-farming detection lives there and may zero a user's score; from the validator's point of view the score is the integer that arrives in the signed snapshot.
+**Validators compute this themselves** from the signed event stream, over the window `[now − 14 days, now]` — the in-progress day included, so scores move continuously rather than stepping once a day.
+
+Anti-fraud detection remains platform-side, but it now arrives as signed `verdict` records carrying a weight in basis points, which the validator applies. A verdict for the current day does not exist until the platform seals it the following morning, so today's activity is scored at full weight until then; the rolling window corrects it afterwards.
 
 ---
 
@@ -104,7 +106,7 @@ If every candidate fails eligibility, the burn target rules in [`burn-policy.md`
 - If the configured burn hotkey is currently registered in the metagraph, 100% of the weight goes to the burn UID (Case C).
 - If the burn hotkey is not registered either, the engine emits `status = "no_valid_weight_target"` and the runner **does not submit**. This is the fail-closed posture from consolidated specification §2.11 / §12.11 Case D.
 
-This is the only failure mode of the engine itself. Every other failure (snapshot signature, hash mismatch, environment mismatch, chain hyperparameter mismatch) happens upstream and triggers a cycle-level error before the engine runs.
+This is the only failure mode of the engine itself. Every other failure (a missing or unreadable event store, environment mismatch, chain hyperparameter mismatch) happens upstream and triggers a cycle-level error before the engine runs.
 
 ---
 

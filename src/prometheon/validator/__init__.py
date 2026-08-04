@@ -4,7 +4,9 @@ This module orchestrates the validator lifecycle:
 
 1. Load and validate configuration.
 2. Sync metagraph at startup and on a throttled cadence.
-3. Refresh the signed snapshot.
+3. Recompute miner records from the local event store over the rolling
+   window ``[now - 14 days, now]`` (or, on the retained snapshot
+   fallback, refresh and verify the signed snapshot).
 4. Re-resolve hotkey-to-UID per submission attempt.
 5. Run the pure mechanism engine.
 6. Submit weights through the chain adapter.
