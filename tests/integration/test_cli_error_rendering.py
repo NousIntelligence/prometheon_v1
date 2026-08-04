@@ -251,7 +251,7 @@ class TestVerifyMinerErrorRendering:
         assert "(platform, HTTP 401)" in captured.err
         assert "Remediation:" in captured.err
         # The renderer's docs link uses the canonical docs root.
-        assert "github.com/NousIntelligence/prometheon_v1/blob/main/docs" in captured.err
+        assert "github.com/BitSpaceorganization/prometheon_v1/blob/main/docs" in captured.err
 
     def test_renderer_block_does_not_include_verbose_trailer_without_flag(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]

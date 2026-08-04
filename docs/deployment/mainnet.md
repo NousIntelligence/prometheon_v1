@@ -19,7 +19,7 @@ This guide is the operational checklist; the underlying mechanism is described i
 ## Setup
 
 ```bash
-git clone https://github.com/NousIntelligence/prometheon_v1
+git clone https://github.com/BitSpaceorganization/prometheon_v1
 cd prometheon_v1
 uv sync
 cp configs/finney.example.toml ~/prometheon-finney.toml
@@ -79,7 +79,7 @@ sudo install -d -m 0755 -o prometheon -g prometheon /var/lib/prometheon
 sudo install -d -m 0750 /etc/prometheon
 
 # 2. Deploy the code where the units expect it (/opt/prometheon/.venv/bin).
-sudo git clone https://github.com/NousIntelligence/prometheon_v1 /opt/prometheon
+sudo git clone https://github.com/BitSpaceorganization/prometheon_v1 /opt/prometheon
 sudo chown -R prometheon:prometheon /opt/prometheon
 sudo -u prometheon sh -c 'cd /opt/prometheon && uv sync --no-dev'
 

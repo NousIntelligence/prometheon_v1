@@ -12,7 +12,7 @@ prose.
 ## Getting set up
 
 ```bash
-git clone https://github.com/NousIntelligence/prometheon_v1.git
+git clone https://github.com/BitSpaceorganization/prometheon_v1.git
 cd prometheon_v1
 uv sync --group dev
 uv run pytest -m unit

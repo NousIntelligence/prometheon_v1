@@ -15,7 +15,7 @@ Testnet brings real Bittensor consensus into the loop while the BitFan platform 
 ## Setup
 
 ```bash
-git clone https://github.com/NousIntelligence/prometheon_v1
+git clone https://github.com/BitSpaceorganization/prometheon_v1
 cd prometheon_v1
 uv sync
 cp configs/testnet.example.toml ~/prometheon-testnet.toml

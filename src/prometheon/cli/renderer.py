@@ -110,7 +110,7 @@ from prometheon.security.signatures import (
 
 # Where unknown-code reports go. The labelled template ships in
 # .github/ISSUE_TEMPLATE/ so the reporter only fills in the wire payload.
-_REPO_SLUG: str = "NousIntelligence/prometheon_v1"
+_REPO_SLUG: str = "BitSpaceorganization/prometheon_v1"
 _ISSUE_TEMPLATE_NAME: str = "unrecognised-platform-code.md"
 _DOCS_ROOT: str = f"https://github.com/{_REPO_SLUG}/blob/main/docs"
 
