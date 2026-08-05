@@ -25,6 +25,13 @@ import urllib.parse
 
 import pytest
 
+from prometheon.chain.subtensor import SetWeightsFailedError
+from prometheon.chain.weights import (
+    CommitRevealEnabledError,
+    MechidMissingError,
+    WeightSubmissionError,
+    WeightsVersionMismatchError,
+)
 from prometheon.cli.renderer import (
     _CATALOG,
     _LOCAL_TEMPLATES,
@@ -55,6 +62,7 @@ from prometheon.security.signatures import (
     SignatureFormatError,
     SignatureVerificationError,
 )
+from prometheon.validator.runner import EventWeightSourceError
 
 pytestmark = pytest.mark.unit
 
@@ -465,3 +473,42 @@ class TestRenderedShape:
         exc = NonceExpiredError(status_code=401, detail="ttl")
         rendered = render_error(exc, verbose=False)
         assert rendered.endswith("\n")
+
+
+class TestRuntimeErrorFamiliesRender:
+    """docs/validator.md promises a structured block on every failure.
+
+    It did not hold: the renderer covered only the platform and identity
+    families, so every code in the fail-closed troubleshooting table printed
+    a bare one-liner. An operator lost real diagnosis time to a commit-reveal
+    outage that said only `cycle 1 failed: set_weights returned failure`.
+    """
+
+    @pytest.mark.parametrize(
+        ("exc", "code"),
+        [
+            (CommitRevealEnabledError("enabled"), "chain.commit_reveal_enabled"),
+            (WeightsVersionMismatchError("drifted"), "chain.weights_version_mismatch"),
+            (MechidMissingError("no mechid"), "chain.mechid_missing"),
+            (EventWeightSourceError("empty store"), "validator.event_weight_source"),
+            (SetWeightsFailedError("rejected"), "chain.set_weights_failed"),
+        ],
+    )
+    def test_each_fail_closed_code_renders_with_remediation(
+        self, exc: Exception, code: str
+    ) -> None:
+        block = render_error(exc)
+        assert code in block, block
+        assert "Remediation:" in block, block
+        # Not the bare-repr fallback.
+        assert block.strip() != str(exc)
+
+    def test_base_classes_fall_back_rather_than_going_bare(self) -> None:
+        """A future subclass with no template of its own still renders."""
+
+        class NewGateError(WeightSubmissionError):
+            code = "chain.some_future_gate"
+
+        block = render_error(NewGateError("hypothetical"))
+        assert "chain.some_future_gate" in block
+        assert "Remediation:" in block

@@ -575,6 +575,12 @@ class ValidatorRunner:
             last_accepted_snapshot_id=plan.snapshot_id,
             last_weight_plan_hash=None,
             last_metagraph_block=plan.metagraph_block,
+            # Declared since the first release and never written, so it read
+            # null on healthy validators with thousands of submissions. It
+            # is the metagraph block the submitted vector was computed
+            # against — the closest thing to "when" a submission happened
+            # that the runner knows without a second chain round trip.
+            last_submitted_block=plan.metagraph_block if submitted else None,
             last_extrinsic_hash=extrinsic_hash,
             last_submit_status="success" if submitted else "skipped",
             last_error=None,

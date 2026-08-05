@@ -76,7 +76,10 @@ and the paths, and enable both:
 sudo useradd --system --create-home --home-dir /home/prometheon \
     --shell /usr/sbin/nologin prometheon
 sudo install -d -m 0755 -o prometheon -g prometheon /var/lib/prometheon
-sudo install -d -m 0750 /etc/prometheon
+# -o/-g matter: without them the directory is root:root 0750 and the
+# service user cannot traverse it, so neither process ever reaches the
+# config however permissive the file itself is.
+sudo install -d -m 0750 -o root -g prometheon /etc/prometheon
 
 # 2. Deploy the code where the units expect it (/opt/prometheon/.venv/bin).
 sudo git clone https://github.com/BitSpaceorganization/prometheon_v1 /opt/prometheon
@@ -114,8 +117,17 @@ Three things to get right, all of which fail quietly rather than loudly:
 - **The ingest listener needs a TLS reverse proxy.** It binds loopback; the
   platform dials a public HTTPS URL and treats a redirect as delivery failure.
 
-`docker compose -f docker/compose.yaml up -d` runs the same pair in containers
-if you would rather not manage units.
+If you would rather not manage units, compose runs the same pair:
+
+```bash
+export PROMETHEON_VALIDATOR_API_TOKEN="<token>"
+export PROMETHEON_CONFIG="$HOME/prometheon-finney.toml"
+# Required: compose runs the containers as you, so your wallet and the state
+# directory stay readable. Omitting them fails at project load.
+export PROMETHEON_UID=$(id -u) PROMETHEON_GID=$(id -g)
+mkdir -p ./validator-state
+docker compose -f docker/compose.yaml up -d
+```
 
 ---
 
@@ -126,9 +138,9 @@ if you would rather not manage units.
 | `cycle_submitted` events | NDJSON event log | Healthy. Expected at the configured cadence. |
 | `cycle_no_valid_weight_target` | NDJSON event log | Investigate: either every candidate failed eligibility, or the burn hotkey is missing from the metagraph at the moment of submission. |
 | `cycle_failed` | NDJSON event log + state file | Investigate immediately. Codes starting with `chain.` or `SNAPSHOT_` indicate categorical failures that won't self-heal. |
-| Lack of new events for > 1 hour | Tail `.validator-state/events.ndjson` | Process probably died; check `journalctl -u prometheon-validator`. |
+| Lack of new events for > 1 hour | Tail `/var/lib/prometheon/state/events.ndjson` | Process probably died; check `journalctl -u prometheon-validator`. |
 
-Run `prometheon status` as a quick read-only sanity check.
+Run `prometheon status --state-directory /var/lib/prometheon/state` as a quick read-only sanity check.
 
 ---
 

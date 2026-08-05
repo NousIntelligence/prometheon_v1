@@ -42,7 +42,7 @@ export PROMETHEON_VALIDATOR_API_TOKEN="<bootstrap token from BitFan portal>"
 uv run prometheon verify-validator \
     --username             <bitfan_username> \
     --email                <bitfan_email> \
-    --wallet-name          <coldkey_directory_name> \
+    --wallet          <coldkey_directory_name> \
     --wallet-hotkey        <hotkey_file_name> \
     --platform-base-url    https://subnet-api.bitfan.ai \
     --platform-instance-id bitfan-production \
@@ -187,7 +187,7 @@ The fastest local check:
 uv run prometheon status
 ```
 
-prints the persisted state file. On the event path that includes which inputs produced the submitted vector — `weight_source`, the scored epoch, the `scores_hash`, the engine version and the four per-family stream cursors — alongside the last block submitted, last extrinsic hash and last error. Exit code 0 = state present; exit code 2 = no cycle has completed yet.
+prints the persisted state file. On the event path that includes which inputs produced the submitted vector — `weight_source`, the scored epoch, the `scores_hash`, the engine version and the four per-family stream cursors — alongside `last_submitted_block` (the metagraph block the submitted vector was computed against, null when the last cycle did not submit), the last extrinsic hash and the last error. Exit code 0 = state present; exit code 2 = no cycle has completed yet.
 
 For an event-by-event view, tail the NDJSON log:
 
@@ -278,10 +278,10 @@ Run this with the subnet-owner coldkey wallet on the right network (the example 
 ```bash
 btcli sudo set \
     --netuid 481 \
-    --param commit_reveal_weights_enabled \
+    --name commit_reveal_weights_enabled \
     --value False \
     --network test \
-    --wallet-name <subnet_owner_coldkey_wallet_name>
+    --wallet <subnet_owner_coldkey_wallet_name>
 ```
 
 Recommended order of operations:
@@ -289,9 +289,10 @@ Recommended order of operations:
 1. Stop the running validators against this netuid first. They are not making forward progress while commit-reveal is on, and you do not want them attempting `set_weights` during the hyperparameter-change finalisation window.
 2. Confirm the wallet you are about to unlock is the subnet owner:
    ```bash
-   btcli subnets info --netuid <N> --network <net>
+   btcli subnet show <N> --network <net>
    ```
-   The output prints the subnet-owner SS58. Match it against `btcli wallet overview --wallet.name <wallet>`.
+   The output prints the subnet-owner SS58. Match it against
+   `btcli wallet overview --wallet <wallet>`.
 3. Execute the sudo call. `btcli` prompts for the coldkey passphrase and prints the extrinsic finalisation message.
 4. Verify the on-chain value before restarting anything:
    ```bash
@@ -350,7 +351,10 @@ not in a terminal.
 sudo useradd --system --create-home --home-dir /home/prometheon \
     --shell /usr/sbin/nologin prometheon
 sudo install -d -m 0755 -o prometheon -g prometheon /var/lib/prometheon
-sudo install -d -m 0750 /etc/prometheon
+# -o/-g matter: without them the directory is root:root 0750 and the
+# service user cannot traverse it, so neither process ever reaches the
+# config however permissive the file itself is.
+sudo install -d -m 0750 -o root -g prometheon /etc/prometheon
 
 # 2. Deploy the code where the units expect it (/opt/prometheon/.venv/bin).
 sudo git clone https://github.com/BitSpaceorganization/prometheon_v1 /opt/prometheon
@@ -382,6 +386,10 @@ two processes from one image, sharing a named volume:
 ```bash
 export PROMETHEON_VALIDATOR_API_TOKEN="<token>"
 export PROMETHEON_CONFIG="$HOME/prometheon-testnet.toml"
+# Both are required: compose runs the containers as you, so your wallet and
+# the state directory stay readable. Omitting them fails at project load.
+export PROMETHEON_UID=$(id -u) PROMETHEON_GID=$(id -g)
+mkdir -p ./validator-state
 docker compose -f docker/compose.yaml up --build -d
 ```
 

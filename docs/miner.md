@@ -44,7 +44,18 @@ Reward eligibility (consolidated in [`scoring.md`](./scoring.md)):
 - A miner is **reward-eligible** only if they have **≥ 3 active members**.
 - Among eligible miners the top **10** by score share the daily reward pool proportionally.
 
-You can grow your Fan Group for as long as you like before deciding to register as a miner. The reward path only activates once you complete Step 2.
+You can grow your Fan Group for as long as you like before deciding to register
+as a miner — but **growth before you bind earns nothing.**
+
+Attribution resolves per day against the hotkey bound at `00:00Z`, and there is
+no back-credit: days that closed before your bind attribute to no hotkey at
+all, so they contribute zero however much activity they hold. A bind partway
+through a day counts from the *following* day. Someone who grows a group for
+two weeks and then verifies starts from zero and fills the 14-day window from
+that point forward.
+
+If you intend to mine, bind early — the Fan Group can keep growing afterwards,
+and every day from the bind onward counts.
 
 ---
 
@@ -81,7 +92,7 @@ Once verified, your Fan Group's activity flows into the platform's signed event 
 The miner binary exists for Bittensor convention. It prints a guidance block and exits:
 
 ```bash
-python neurons/miner.py
+uv run python neurons/miner.py
 ```
 
 You do **not** need to keep this process running; rewards do not depend on it.
@@ -124,7 +135,7 @@ and the manual 2FA + Ops Console flow for when the coldkey is gone too.
 - Registering a hotkey but operating no Fan Group.
 - Creating a Fan Group with no users.
 - Creating accounts that fail BitFan anti-farming checks (their scores will be zeroed).
-- Running `python neurons/miner.py` continuously.
+- Running `uv run python neurons/miner.py` continuously.
 
 Rewards flow exclusively from the activity of users in your Fan Group. The platform publishes that activity as signed events; every validator scores it independently from the open formula, and platform anti-fraud verdicts can down-weight or zero a day.
 

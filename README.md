@@ -110,7 +110,7 @@ Before either the miner or validator quick-start works, you need:
 - [ ] A **bootstrap token** for the **first verify** call only — issued through the BitFan portal at https://bitfan.ai/me/prometheon. Click *Get bootstrap token* with your role (miner or validator). The token is one-time, scoped to `identity:verify`, expires after one hour, and is auto-revoked the moment `verify-miner` / `verify-validator` succeeds.
 - [ ] A **Bittensor wallet** created via `btcli` (coldkey + at least one hotkey).
 - [ ] The hotkey **registered on the target netuid** (`btcli subnet register`).
-- [ ] For validators only: a **chain-issued validator permit** on that netuid (the chain grants this after enough stake; check via `btcli wallet overview`).
+- [ ] For validators only: a **chain-issued validator permit** on that netuid (the chain grants this after enough stake; check the `VALIDATOR_PERMIT` column of `btcli subnet metagraph 481` — `wallet overview` does not show permits).
 - [ ] The target subnet must be operating in **plain `set_weights` mode** — i.e. the `commit_reveal_weights_enabled` hyperparameter on that netuid must be `False`. Phase 1 deliberately does not implement the commit-reveal weight submission scheme; if the subnet owner enables it, the runtime fails closed with `chain.commit_reveal_enabled`. See [`docs/validator.md` § Troubleshooting](./docs/validator.md#troubleshooting) for the operator-side fix.
 
 The platform-side values you will need (URL, `platform_instance_id`, signing key) are all pre-filled for testnet 481 in [`configs/testnet.example.toml`](./configs/testnet.example.toml) — you do not need to obtain them separately. The `[burn]` section there is inert: the burn target is the subnet owner hotkey read from chain and the rate is a locked constant, so editing it changes nothing.
@@ -129,11 +129,13 @@ Phase 1 miners **do not run a daemon**. The reward path is real BitFan Fan Group
 
 **Order matters: own a Fan Group first.** `verify-miner` requires that you already lead a Fan Group on BitFan (any platform user can create one — no miner status needed). It binds your hotkey to that existing leadership; it does not create a Fan Group.
 
+**But bind early — growth before you bind earns nothing.** Attribution resolves per day against the hotkey bound at `00:00Z`, and there is no back-credit: days that closed before your bind contribute zero however much activity they hold, and a bind partway through a day counts from the next one. Growing a group for two weeks and verifying afterwards starts you at zero. The group can keep growing after you bind; every day from the bind onward counts. See [`docs/miner.md`](./docs/miner.md).
+
 ```bash
 # 1. On the BitFan web app: create and grow a Fan Group (no miner status required).
 
 # 2. Register your hotkey on the subnet.
-btcli subnet register --netuid 481 --network test --wallet.name <wallet> --wallet.hotkey <hotkey>
+btcli subnet register --netuid 481 --network test --wallet <wallet> --wallet-hotkey <hotkey>
 
 # 3. Make your bootstrap token available via env var
 #    (obtained from the BitFan portal — see Prerequisites above)

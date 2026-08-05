@@ -167,9 +167,7 @@ perfectly alive and receiving nothing.
 incident, and from cron during the shadow phase. The completeness comparison is no longer
 operator-only: with `[validator] attest_digests` on (the default) the runner repeats it
 every cycle for each unsigned sealed day in the window and reports a mismatch as a problem.
-`check-day` remains the way to inspect one day by hand. Run them by
-hand after an incident, and from cron during the shadow phase; automatic
-scheduling arrives with the runtime automation glue.
+`check-day` remains the way to inspect one day by hand.
 
 **Backfill** pulls what you are missing: pages of `GET /events/backfill`
 deliver the exact same canonical bytes push would have, validated and
@@ -299,8 +297,16 @@ Rules the sealed-day path enforces:
   signature-injection evidence are printed as `ALARM:` lines; the JSON miner
   records go to stdout for scripting.
 
-During the **shadow phase**, compare the two derivations daily. At the
-record level:
+During the **shadow phase**, compare the two derivations daily.
+
+**Start with the vector-level check below** — it needs no extra files and is
+what actually gets submitted. The record-level comparison is available too,
+but note that `--snapshot-json` takes a file **you** supply: no subnet command
+produces it. It is a JSON list of snapshot-derived miner records
+(`{miner_hotkey, score, active_members}` per entry), which you would fetch
+from the platform's snapshot API yourself. Tracked as a gap — see the
+repository issues — because the shadow workflow should not require operators
+to hand-roll a fetcher.
 
 ```bash
 uv run prometheon ingest score --db … --date … \
