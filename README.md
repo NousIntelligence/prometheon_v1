@@ -129,6 +129,8 @@ Phase 1 miners **do not run a daemon**. The reward path is real BitFan Fan Group
 
 **Order matters: own a Fan Group first.** `verify-miner` requires that you already lead a Fan Group on BitFan (any platform user can create one — no miner status needed). It binds your hotkey to that existing leadership; it does not create a Fan Group.
 
+**But bind early — growth before you bind earns nothing.** Attribution resolves per day against the hotkey bound at `00:00Z`, and there is no back-credit: days that closed before your bind contribute zero however much activity they hold, and a bind partway through a day counts from the next one. Growing a group for two weeks and verifying afterwards starts you at zero. The group can keep growing after you bind; every day from the bind onward counts. See [`docs/miner.md`](./docs/miner.md).
+
 ```bash
 # 1. On the BitFan web app: create and grow a Fan Group (no miner status required).
 
