@@ -27,18 +27,19 @@ import click
 import httpx
 
 from prometheon.chain.subtensor import (
-    connect as connect_subtensor,
-)
-from prometheon.chain.subtensor import (
+    SubtensorError,
     detect_capabilities,
     read_hyperparameters,
     read_subnet_owner_hotkey,
     submit_set_weights,
     sync_metagraph_view,
 )
+from prometheon.chain.subtensor import (
+    connect as connect_subtensor,
+)
 from prometheon.chain.uids import resolve_plan_targets
 from prometheon.chain.wallet import get_hotkey_keypair, load_wallet
-from prometheon.chain.weights import to_u16_chain_vector
+from prometheon.chain.weights import WeightSubmissionError, to_u16_chain_vector
 from prometheon.cli._common import echo_info, echo_success, read_api_token_or_exit
 from prometheon.cli.ingest_cmd import build_backfill_config
 from prometheon.cli.renderer import render_error
@@ -50,11 +51,12 @@ from prometheon.platform.errors import PlatformError
 from prometheon.security.signatures import SignatureError
 from prometheon.validator.attestor import DigestAttestor
 from prometheon.validator.config import (
+    ConfigError,
     ValidatorConfig,
     WeightSource,
     load_validator_config,
 )
-from prometheon.validator.runner import ValidatorRunner
+from prometheon.validator.runner import RunnerError, ValidatorRunner
 
 
 class _SubtensorAdapter:
@@ -333,7 +335,15 @@ def _run_loop(
                 f"cycle {iteration} result: status={result.plan.status}, "
                 f"submitted={result.submitted}, extrinsic={result.extrinsic_hash}"
             )
-        except (PlatformError, IdentityError, SignatureError) as exc:
+        except (
+            PlatformError,
+            IdentityError,
+            SignatureError,
+            WeightSubmissionError,
+            SubtensorError,
+            RunnerError,
+            ConfigError,
+        ) as exc:
             # The runner has already persisted the failure via
             # _safe_failure_summary; here we surface the rendered block
             # so the operator sees the remediation inline.

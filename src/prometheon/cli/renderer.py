@@ -45,6 +45,13 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+from prometheon.chain.subtensor import SetWeightsFailedError, SubtensorError
+from prometheon.chain.weights import (
+    CommitRevealEnabledError,
+    MechidMissingError,
+    WeightSubmissionError,
+    WeightsVersionMismatchError,
+)
 from prometheon.identity.errors import (
     EnvironmentMismatchError,
     IdentityDomainMismatchError,
@@ -103,6 +110,8 @@ from prometheon.security.signatures import (
     SignatureVerificationError,
     UnsupportedKeyTypeError,
 )
+from prometheon.validator.config import ConfigError
+from prometheon.validator.runner import EventWeightSourceError, RunnerError
 
 # ---------------------------------------------------------------------------
 # Module-level constants
@@ -698,6 +707,122 @@ _PLATFORM_TEMPLATES: dict[str, ErrorTemplate] = {
 
 
 _LOCAL_TEMPLATES: dict[type[Exception], ErrorTemplate] = {
+    # ------------------------- Subnet runtime layer -----------------------
+    # These are the fail-closed conditions docs/validator.md tabulates. They
+    # reached the operator as a bare one-line repr until an operator lost
+    # real time to a commit-reveal outage that printed nothing actionable.
+    CommitRevealEnabledError: ErrorTemplate(
+        headline="The subnet has commit-reveal weights enabled; Phase 1 does not implement it.",
+        explanation=(
+            "The chain hyperparameter `commit_reveal_weights_enabled` is true on "
+            "this netuid. Phase 1 submits plain `set_weights` only, so it fails "
+            "closed rather than submitting a vector the chain will discard."
+        ),
+        remediation=(
+            "Only the subnet owner can change this. Ask them to set "
+            "`commit_reveal_weights_enabled` to false on this netuid "
+            "(`btcli sudo set --name commit_reveal_weights_enabled --value False`). "
+            "Until then the validator will not submit."
+        ),
+        docs_anchor="validator.md#troubleshooting",
+    ),
+    WeightsVersionMismatchError: ErrorTemplate(
+        headline="The chain's weights version does not match the configured version_key.",
+        explanation=(
+            "The subnet owner has bumped the on-chain weights version. Submitting "
+            "under a stale key produces weights the chain ignores, so the runtime "
+            "stops instead."
+        ),
+        remediation=(
+            "Update `[chain] version_key` to the chain's current value and restart. "
+            "If you deliberately want to submit under the old key, set "
+            "`fail_on_weights_version_mismatch = false` — on finney this is almost "
+            "never what you want."
+        ),
+        docs_anchor="validator.md#troubleshooting",
+    ),
+    MechidMissingError: ErrorTemplate(
+        headline="The installed Bittensor SDK has no mechid support.",
+        explanation=(
+            "This subnet requires the mechid parameter on `set_weights`, and the "
+            "SDK in your environment does not accept it."
+        ),
+        remediation=(
+            "Upgrade the Bittensor SDK (`uv sync` picks up the pinned version). "
+            "To submit without it deliberately, set "
+            "`allow_legacy_sdk_without_mechid = true` in `[chain]`."
+        ),
+        docs_anchor="validator.md#troubleshooting",
+    ),
+    EventWeightSourceError: ErrorTemplate(
+        headline="The local event store has no data, so there is nothing to score.",
+        explanation=(
+            "The live weight source is the event store the platform pushes into. "
+            "Every stream cursor is still at zero, which means no push has ever "
+            "been accepted — the ingest service is not running, or its endpoint "
+            "was never registered with the platform."
+        ),
+        remediation=(
+            "Start `prometheon ingest serve`, confirm `[validator] events_db` names "
+            "the same absolute file the service writes, and register the public URL "
+            "with `prometheon ingest register-endpoint`. Raised before any chain "
+            "call, so nothing was submitted from partial inputs."
+        ),
+        docs_anchor="decentralized-validation.md#this-is-a-prerequisite-for-setting-weights",
+    ),
+    SetWeightsFailedError: ErrorTemplate(
+        headline="The chain rejected the set_weights extrinsic.",
+        explanation=(
+            "The vector was built and submitted, and the chain refused it. Common "
+            "causes are insufficient stake, a revoked validator permit, or a "
+            "version-key drift the pre-flight gate could not see."
+        ),
+        remediation=(
+            "Re-run with `--verbose` for the SDK's own diagnostic, then check the "
+            "hotkey still holds a validator permit "
+            "(`btcli subnet metagraph <netuid>`) and has enough stake."
+        ),
+        docs_anchor="validator.md#troubleshooting",
+    ),
+    ConfigError: ErrorTemplate(
+        headline="The validator TOML was rejected at load.",
+        explanation=(
+            "The config failed schema validation before anything else ran. Unknown "
+            "keys are rejected rather than ignored, so a typo fails here rather "
+            "than silently taking a default."
+        ),
+        remediation=(
+            "The message names the offending field. Compare against the example "
+            "for your network under `configs/`."
+        ),
+        docs_anchor="validator.md#step-2--configure-the-runtime",
+    ),
+    # Bases last: _lookup_local_template walks the MRO, so a subclass with
+    # no entry of its own falls back to these.
+    WeightSubmissionError: ErrorTemplate(
+        headline="Weight submission failed a pre-flight policy gate.",
+        explanation=(
+            "The runtime refused to submit because a chain-side condition made the "
+            "submission unsafe or pointless."
+        ),
+        remediation="Read the message for the specific gate, then see the troubleshooting table.",
+        docs_anchor="validator.md#troubleshooting",
+    ),
+    SubtensorError: ErrorTemplate(
+        headline="A subtensor call failed.",
+        explanation=(
+            "Connecting, syncing the metagraph, or reading hyperparameters did not "
+            "succeed. This is the chain endpoint or the SDK, not your config."
+        ),
+        remediation="Check chain connectivity and the configured network, then retry.",
+        docs_anchor="validator.md#troubleshooting",
+    ),
+    RunnerError: ErrorTemplate(
+        headline="The validator cycle failed.",
+        explanation="A runtime step failed; the specific condition is in the message.",
+        remediation="See the troubleshooting table for the code on the first line.",
+        docs_anchor="validator.md#troubleshooting",
+    ),
     # ---------------------------- Identity layer --------------------------
     IdentityPayloadValidationError: ErrorTemplate(
         headline="The CLI built an identity payload that did not pass local validation.",
@@ -855,6 +980,21 @@ def render_error(exc: BaseException, *, verbose: bool = False) -> str:
             if exc.status_code is not None
             else "platform",
             wire_code=exc.wire_code,
+            verbose=verbose,
+        )
+
+    if isinstance(exc, (WeightSubmissionError, SubtensorError, RunnerError, ConfigError)):
+        # The fail-closed families. They carry a stable `code` exactly like the
+        # identity errors, and an operator hitting one needs the remediation
+        # more than for anything else the runtime raises.
+        template = _lookup_local_template(type(exc))
+        if template is None:
+            return _render_unknown_local(exc, verbose=verbose)
+        return _render_with_template(
+            exc=exc,
+            template=template,
+            origin_label="subnet runtime",
+            wire_code=getattr(exc, "code", type(exc).__name__),
             verbose=verbose,
         )
 
